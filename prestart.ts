@@ -1,5 +1,4 @@
 import fs from "fs";
-console.log("icici");
 
 try {
     await fs.promises.stat("demo");

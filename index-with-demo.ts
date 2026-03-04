@@ -8,26 +8,31 @@ const saveLastSeen = (skipWelcomeForever: boolean) => {
         : Date.now();
 
     fs.promises.writeFile(skipFile, cachedLastSeen.toString());
-}
+};
 
 const openTerminal = async () => {
     await import("./terminal");
-}
+};
 
 const getLastSeen = async () => {
     try {
-        return parseInt(await fs.promises.readFile(skipFile, { encoding: "utf-8" }));
-    } catch (e) { return 0 }
-}
+        return parseInt(
+            await fs.promises.readFile(skipFile, { encoding: "utf-8" })
+        );
+    } catch (e) {
+        return 0;
+    }
+};
 
-if (Date.now() - await getLastSeen() < 1000 * 60 * 24) { // 24h
+if (Date.now() - (await getLastSeen()) < 1000 * 60 * 24) {
+    // 24h
     openTerminal();
 } else {
     const showWelcomeMessage = (await import("./demo/init")).default;
     showWelcomeMessage((dontShowAgain) => {
-        openTerminal()
+        openTerminal();
         if (dontShowAgain) {
-            saveLastSeen(true)
+            saveLastSeen(true);
         }
     });
     saveLastSeen(false);

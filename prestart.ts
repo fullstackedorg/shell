@@ -5,12 +5,12 @@ const copyIndexTS = (file: string) => fs.promises.cp(file, "index.ts");
 try {
     await fs.promises.stat("demo");
     if ((await fs.promises.readdir("demo")).length > 0) {
-        await copyIndexTS("index-with-demo.ts")
+        await copyIndexTS("index-with-demo.ts");
     } else {
-        await copyIndexTS("index-no-demo.ts")
+        await copyIndexTS("index-no-demo.ts");
     }
 } catch (e) {
-    await copyIndexTS("index-no-demo.ts")
+    await copyIndexTS("index-no-demo.ts");
 }
 
 await Promise.all([

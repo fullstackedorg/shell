@@ -1,13 +1,20 @@
 import * as Sentry from "@sentry/browser";
 import packageJson from "./package.json";
-import fs from "fs";
+// @ts-ignore
+import sentry from "sentry";
+import { getConfig } from "./cli/config";
 
-try {
-    const dsn = await fs.promises.readFile("build:/dsn.txt", {
-        encoding: "utf-8"
-    });
+const sentryCore = await getConfig("sentryCore");
+const sentryApp = await getConfig("sentryApp");
+
+if (sentryCore) {
+    console.log("initing sentry")
+    sentry.init(sentryCore, packageJson.version);
+}
+
+if (sentryApp) {
     Sentry.init({
-        dsn,
+        dsn: sentryApp,
         release: packageJson.version
     });
-} catch (e) {}
+}

@@ -25,7 +25,10 @@ window.addEventListener("resize", fitAddon.fit.bind(fitAddon));
 
 const shell = new Shell(terminal);
 
-terminal.writeln("Welcome to FullStacked");
+const v = (process.versions as any).fullstacked;
+terminal.writeln(
+    `Welcome to FullStacked${v ? ` v${v.major}.${v.minor}.${v.patch}` : ""}`
+);
 shell.prompt();
 
 terminal.onData((e) => {

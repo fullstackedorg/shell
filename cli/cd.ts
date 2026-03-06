@@ -12,7 +12,9 @@ export const cd: Command = {
         onCancel: (handler: () => void) => void
     ) => {
         const dest = args[0] || "/";
-        const target = path.resolve(process.cwd(), dest);
+        const target = dest.startsWith("/")
+            ? dest
+            : path.resolve(process.cwd(), dest);
         try {
             const stats = await fs.promises.stat(target);
             if (!stats.isDirectory()) {

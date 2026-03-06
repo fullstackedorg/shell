@@ -32,7 +32,7 @@ export const commands: Record<string, Command> = {
     npm,
     vi,
     ssh,
-    config
+    config,
 };
 
 export const aliases: Record<string, string> = {

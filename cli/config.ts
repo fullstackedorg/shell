@@ -6,7 +6,6 @@ const CONFIG_FILE = "/.config";
 const LOCK_FILE = "/.config.lock";
 
 async function acquireLock() {
-    console.log("acquire");
     const start = Date.now();
     while (Date.now() - start < 5000) {
         // 5 second timeout
@@ -23,10 +22,9 @@ async function acquireLock() {
 }
 
 async function releaseLock() {
-    console.log("release");
     try {
         await fs.promises.rm(LOCK_FILE, { recursive: true });
-    } catch (e) {}
+    } catch (e) { }
 }
 
 async function loadConfig(): Promise<Record<string, any>> {
@@ -84,7 +82,7 @@ export const config: Command = {
         const { positionals } = parseArgs(args);
 
         if (positionals.length === 0) {
-            shell.writeln("Usage: config <get|set|delete> [key] [value]");
+            shell.writeln("Usage: config <get|set|delete|list> [key] [value]");
             return;
         }
 
@@ -132,9 +130,21 @@ export const config: Command = {
                 }
                 break;
 
+            case "list":
+                const allConfig = await getConfig();
+                const keys = Object.keys(allConfig);
+                if (keys.length === 0) {
+                    shell.writeln("Configuration is empty.");
+                } else {
+                    for (const k of keys) {
+                        shell.writeln(`${k}: ${JSON.stringify(allConfig[k], null, 2)}`);
+                    }
+                }
+                break;
+
             default:
                 shell.writeln(`Unknown action: ${action}`);
-                shell.writeln("Usage: config <get|set|delete> [key] [value]");
+                shell.writeln("Usage: config <get|set|delete|list> [key] [value]");
                 return 1;
         }
     }

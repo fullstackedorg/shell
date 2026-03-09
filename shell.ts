@@ -6,9 +6,9 @@ import { gitLib } from "./cli/git";
 import { githubDeviceFlow } from "./utils/githubDeviceFlow";
 import { handleAutocomplete } from "./utils/autocomplete";
 import fs from "fs";
-import path from "path";
 
-const HISTORY_FILE = path.join(process.cwd(), ".history");
+const HISTORY_FILE = "/.history";
+const GIT_CREDENTIALS_FILE = "/.git-credentials";
 
 const td = new TextDecoder();
 
@@ -29,21 +29,29 @@ export class Shell {
         gitLib.createGitAuthManager().then((m) => {
             this.gitAuthManager = m;
             this.gitAuthManager.on("auth", async (host: string) => {
-                let auth;
-                if (host === "github.com") {
-                    this.writeln(
-                        `Authenticating with ${host} using Device Flow...`
-                    );
-                    // pass a writer function bound to this instance
-                    auth = await githubDeviceFlow((s) => this.write(s));
-                }
+                let auth = await this.getGitCredentials(host);
 
                 if (!auth) {
-                    auth = await this.requestUsernamePassword(host);
+                    if (host === "github.com") {
+                        this.writeln(
+                            `Authenticating with ${host} using Device Flow...`
+                        );
+                        // pass a writer function bound to this instance
+                        auth = await githubDeviceFlow((s) => this.write(s));
+                    }
+
+                    if (!auth) {
+                        auth = await this.requestUsernamePassword(host);
+                    }
                 }
 
                 if (auth) {
                     this.gitAuthManager.writeEvent("authResponse", host, auth);
+                    await this.saveGitCredentials(
+                        host,
+                        auth.username,
+                        auth.password
+                    );
                 } else {
                     this.writeln("Authentication failed or cancelled.");
                     this.gitAuthManager.writeEvent("authResponse", host, {
@@ -252,6 +260,85 @@ export class Shell {
             await fs.promises.writeFile(HISTORY_FILE, content, "utf-8");
         } catch (e) {
             // Silently fail if history cannot be saved
+        }
+    }
+
+    private async getGitCredentials(
+        host: string
+    ): Promise<{ username: string; password: string } | null> {
+        try {
+            if (!fs.existsSync(GIT_CREDENTIALS_FILE)) return null;
+            const content = await fs.promises.readFile(
+                GIT_CREDENTIALS_FILE,
+                "utf-8"
+            );
+            const lines = content.split("\n");
+            for (const line of lines) {
+                if (!line.trim()) continue;
+                try {
+                    const url = new URL(line.trim());
+                    if (url.hostname === host) {
+                        return {
+                            username: decodeURIComponent(url.username),
+                            password: decodeURIComponent(url.password)
+                        };
+                    }
+                } catch (e) {
+                    // Ignore malformed lines
+                }
+            }
+        } catch (e) {
+            // Silently fail
+        }
+        return null;
+    }
+
+    public async saveGitCredentials(
+        host: string,
+        username: string,
+        password: string
+    ) {
+        if (!username || !password) return;
+        try {
+            let credentials: string[] = [];
+            if (fs.existsSync(GIT_CREDENTIALS_FILE)) {
+                const content = await fs.promises.readFile(
+                    GIT_CREDENTIALS_FILE,
+                    "utf-8"
+                );
+                credentials = content
+                    .split("\n")
+                    .filter((line) => line.trim() !== "");
+            }
+
+            const newCredential = `https://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${host}`;
+
+            // Check if we already have a credential for this host and update it
+            let updated = false;
+            for (let i = 0; i < credentials.length; i++) {
+                try {
+                    const url = new URL(credentials[i]);
+                    if (url.hostname === host) {
+                        credentials[i] = newCredential;
+                        updated = true;
+                        break;
+                    }
+                } catch (e) {
+                    // Ignore malformed lines
+                }
+            }
+
+            if (!updated) {
+                credentials.push(newCredential);
+            }
+
+            await fs.promises.writeFile(
+                GIT_CREDENTIALS_FILE,
+                credentials.join("\n") + "\n",
+                "utf-8"
+            );
+        } catch (e) {
+            // Silently fail
         }
     }
 

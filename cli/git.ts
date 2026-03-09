@@ -144,14 +144,29 @@ export const git: Command = {
                 case "log":
                     shell.writeln(formatLog(await gitLib.log(directory)));
                     break;
-                case "clone":
+                case "clone": {
                     if (positionals.length < 1)
                         throw new Error("Usage: git clone <url>");
-                    await runDuplex(
-                        gitLib.clone(positionals[0], directory),
-                        shell
-                    );
+                    let urlStr = positionals[0];
+                    try {
+                        const url = new URL(urlStr);
+                        if (url.username && url.password) {
+                            const host = url.hostname;
+                            const user = decodeURIComponent(url.username);
+                            const pass = decodeURIComponent(url.password);
+                            await shell.saveGitCredentials(host, user, pass);
+
+                            // Strip credentials from URL
+                            url.username = "";
+                            url.password = "";
+                            urlStr = url.toString();
+                        }
+                    } catch (e) {
+                        // Not a valid URL or other parsing error, just proceed with original string
+                    }
+                    await runDuplex(gitLib.clone(urlStr, directory), shell);
                     break;
+                }
                 case "config":
                     if (positionals.length < 2)
                         throw new Error("Usage: git config <key> <value>");

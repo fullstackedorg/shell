@@ -5,6 +5,8 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { Shell } from "./shell";
 
+document.title = "FullStacked";
+
 const main = document.createElement("main");
 
 const cssText = `margin: 0;

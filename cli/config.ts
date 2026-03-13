@@ -27,7 +27,7 @@ async function acquireLock() {
 async function releaseLock() {
     try {
         await fs.promises.rm(LOCK_FILE, { recursive: true });
-    } catch (e) { }
+    } catch (e) {}
 }
 
 async function loadConfig(): Promise<Record<string, any>> {

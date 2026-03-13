@@ -36,4 +36,3 @@ shell.prompt();
 terminal.onData((e) => {
     shell.handleInput(e);
 });
-

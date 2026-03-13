@@ -284,9 +284,9 @@ export const git: Command = {
                     if (!authorName || !authorEmail) {
                         throw new Error(
                             "Author identity unknown\n" +
-                            "*** Please tell me who you are.\n\n" +
-                            'Run\n\n  git config user.email "you@example.com"\n  git config user.name "Your Name"\n\n' +
-                            "to set your account's default identity."
+                                "*** Please tell me who you are.\n\n" +
+                                'Run\n\n  git config user.email "you@example.com"\n  git config user.name "Your Name"\n\n' +
+                                "to set your account's default identity."
                         );
                     }
 

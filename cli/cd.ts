@@ -11,8 +11,8 @@ export const cd: Command = {
         shell: Shell,
         onCancel: (handler: () => void) => void
     ) => {
-        const dest = args[0] || "/";
-        const target = dest.startsWith("/")
+        const dest = args[0] || path.sep;
+        const target = dest.startsWith(path.sep)
             ? dest
             : path.resolve(process.cwd(), dest);
         try {

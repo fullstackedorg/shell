@@ -1,9 +1,10 @@
 import { Command } from "./types";
 import { parseArgs } from "./utils";
 import fs from "fs";
+import path from "path";
 
-const CONFIG_FILE = "/user_data/.config";
-const LOCK_FILE = "/user_data/.config.lock";
+const CONFIG_FILE = path.join(path.sep, "user_data", ".config");
+const LOCK_FILE = path.join(path.sep, "user_data", ".config.lock");
 
 async function acquireLock() {
     const start = Date.now();

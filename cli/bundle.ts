@@ -2,6 +2,7 @@ import bundleLib from "fullstacked/bundle";
 import { Command } from "./types";
 import { Shell } from "../shell";
 import { init, build } from "@fullstacked/builder-tailwindcss";
+import path from "path";
 
 export function formatMessage(msg: any): string {
     if (typeof msg === "string") return msg.replace(/\n/g, "\r\n");
@@ -22,7 +23,7 @@ let tailwindcssBuilder: Awaited<
     ReturnType<typeof bundleLib.builderTailwindCSS>
 >;
 const removeCurrentWorkingDir = (p: string) =>
-    `/${p}`.replace(process.cwd() + "/", "");
+    `${path.sep}${p}`.replace(process.cwd() + path.sep, "");
 
 export const bundle: Command = {
     name: "bundle",
@@ -38,9 +39,9 @@ export const bundle: Command = {
                 "build",
                 async (entryfile, outfile, ...sources) => {
                     await init({
-                        lightningcss: "build:/lightningcss_node.wasm",
-                        oxide: "build:/oxide_wasm_bg.wasm",
-                        tailwindcss: "build:/tailwindcss"
+                        lightningcss: `build:${path.sep}lightningcss_node.wasm`,
+                        oxide: `build:${path.sep}oxide_wasm_bg.wasm`,
+                        tailwindcss: `build:${path.sep}tailwindcss`
                     });
                     entryfile = removeCurrentWorkingDir(entryfile);
                     outfile = removeCurrentWorkingDir(outfile);

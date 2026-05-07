@@ -18,7 +18,10 @@ export const npm: Command = {
             const packageJsonPath = path.resolve(process.cwd(), "package.json");
             let packageJson: any;
             try {
-                const content = await fs.promises.readFile(packageJsonPath, "utf-8");
+                const content = await fs.promises.readFile(
+                    packageJsonPath,
+                    "utf-8"
+                );
                 packageJson = JSON.parse(content);
             } catch (e: any) {
                 if (e.code === "ENOENT") {

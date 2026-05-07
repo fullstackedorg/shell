@@ -38,7 +38,10 @@ export class Vi {
     async init() {
         if (this.filePath) {
             try {
-                const content = await fs.promises.readFile(this.filePath, "utf-8");
+                const content = await fs.promises.readFile(
+                    this.filePath,
+                    "utf-8"
+                );
                 this.lines = content.split("\n");
                 if (this.lines.length === 0) this.lines = [""];
             } catch (e) {

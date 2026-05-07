@@ -135,7 +135,9 @@ export class Shell {
     }
 
     private currentCancelHandler: (() => void) | null = null;
-    private capturedInputHandler: ((data: string) => void | Promise<void>) | null = null;
+    private capturedInputHandler:
+        | ((data: string) => void | Promise<void>)
+        | null = null;
 
     captureInput(handler: (data: string) => void | Promise<void>) {
         this.capturedInputHandler = handler;
@@ -276,10 +278,7 @@ export class Shell {
 
     private async loadHistory() {
         try {
-            const content = await fs.promises.readFile(
-                HISTORY_FILE,
-                "utf-8"
-            );
+            const content = await fs.promises.readFile(HISTORY_FILE, "utf-8");
             this.history = content
                 .split("\n")
                 .filter((line) => line.trim() !== "");

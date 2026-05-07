@@ -177,8 +177,11 @@ export const git: Command = {
                     const configPath = path.resolve(directory, ".git/config");
                     let configContent = "";
                     try {
-                        configContent = await fs.promises.readFile(configPath, "utf-8");
-                    } catch (e) { }
+                        configContent = await fs.promises.readFile(
+                            configPath,
+                            "utf-8"
+                        );
+                    } catch (e) {}
 
                     const sectionRegex = new RegExp(
                         `\\[${section}\\]([\\s\\S]*?)(\\[|$)`
@@ -252,17 +255,13 @@ export const git: Command = {
                                 const userSection = userSectionMatch[1];
                                 if (!authorName) {
                                     const nameMatch =
-                                        userSection.match(
-                                            /name\s*=\s*(.*)/
-                                        );
+                                        userSection.match(/name\s*=\s*(.*)/);
                                     if (nameMatch)
                                         authorName = nameMatch[1].trim();
                                 }
                                 if (!authorEmail) {
                                     const emailMatch =
-                                        userSection.match(
-                                            /email\s*=\s*(.*)/
-                                        );
+                                        userSection.match(/email\s*=\s*(.*)/);
                                     if (emailMatch)
                                         authorEmail = emailMatch[1].trim();
                                 }
@@ -282,9 +281,9 @@ export const git: Command = {
                     if (!authorName || !authorEmail) {
                         throw new Error(
                             "Author identity unknown\n" +
-                            "*** Please tell me who you are.\n\n" +
-                            'Run\n\n  git config user.email "you@example.com"\n  git config user.name "Your Name"\n\n' +
-                            "to set your account's default identity."
+                                "*** Please tell me who you are.\n\n" +
+                                'Run\n\n  git config user.email "you@example.com"\n  git config user.name "Your Name"\n\n' +
+                                "to set your account's default identity."
                         );
                     }
 

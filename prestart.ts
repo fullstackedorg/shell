@@ -1,6 +1,4 @@
 import fs from "fs";
-import git from "fullstacked/git";
-import packageJson from "./package.json";
 
 await Promise.all([
     fs.promises.cp(
@@ -15,11 +13,5 @@ await Promise.all([
         recursive: true
     })
 ]);
-
-const head = await git.head(process.cwd());
-fs.writeFileSync(
-    "out/.build",
-    `${packageJson.version}, branch ${head.branch}, hash ${head.hash.slice(0, 8)}`
-);
 
 process.exit(0);

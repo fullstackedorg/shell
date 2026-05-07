@@ -176,9 +176,9 @@ export const git: Command = {
 
                     const configPath = path.resolve(directory, ".git/config");
                     let configContent = "";
-                    if (fs.existsSync(configPath)) {
-                        configContent = fs.readFileSync(configPath, "utf-8");
-                    }
+                    try {
+                        configContent = await fs.promises.readFile(configPath, "utf-8");
+                    } catch (e) { }
 
                     const sectionRegex = new RegExp(
                         `\\[${section}\\]([\\s\\S]*?)(\\[|$)`
@@ -219,7 +219,7 @@ export const git: Command = {
                         configContent += `\n[${section}]\n\t${property} = ${value}\n`;
                     }
 
-                    fs.writeFileSync(configPath, configContent);
+                    await fs.promises.writeFile(configPath, configContent);
                     break;
                 case "commit":
                     const flagsAm = flags["am"];
@@ -241,32 +241,30 @@ export const git: Command = {
                                 directory,
                                 ".git/config"
                             );
-                            if (fs.existsSync(gitConfigPath)) {
-                                const configContent = fs.readFileSync(
-                                    gitConfigPath,
-                                    "utf-8"
-                                );
-                                const userSectionMatch = configContent.match(
-                                    /\[user\]([\s\S]*?)(\[|$)/
-                                );
-                                if (userSectionMatch) {
-                                    const userSection = userSectionMatch[1];
-                                    if (!authorName) {
-                                        const nameMatch =
-                                            userSection.match(
-                                                /name\s*=\s*(.*)/
-                                            );
-                                        if (nameMatch)
-                                            authorName = nameMatch[1].trim();
-                                    }
-                                    if (!authorEmail) {
-                                        const emailMatch =
-                                            userSection.match(
-                                                /email\s*=\s*(.*)/
-                                            );
-                                        if (emailMatch)
-                                            authorEmail = emailMatch[1].trim();
-                                    }
+                            const configContent = await fs.promises.readFile(
+                                gitConfigPath,
+                                "utf-8"
+                            );
+                            const userSectionMatch = configContent.match(
+                                /\[user\]([\s\S]*?)(\[|$)/
+                            );
+                            if (userSectionMatch) {
+                                const userSection = userSectionMatch[1];
+                                if (!authorName) {
+                                    const nameMatch =
+                                        userSection.match(
+                                            /name\s*=\s*(.*)/
+                                        );
+                                    if (nameMatch)
+                                        authorName = nameMatch[1].trim();
+                                }
+                                if (!authorEmail) {
+                                    const emailMatch =
+                                        userSection.match(
+                                            /email\s*=\s*(.*)/
+                                        );
+                                    if (emailMatch)
+                                        authorEmail = emailMatch[1].trim();
                                 }
                             }
                         } catch (e) {
@@ -284,9 +282,9 @@ export const git: Command = {
                     if (!authorName || !authorEmail) {
                         throw new Error(
                             "Author identity unknown\n" +
-                                "*** Please tell me who you are.\n\n" +
-                                'Run\n\n  git config user.email "you@example.com"\n  git config user.name "Your Name"\n\n' +
-                                "to set your account's default identity."
+                            "*** Please tell me who you are.\n\n" +
+                            'Run\n\n  git config user.email "you@example.com"\n  git config user.name "Your Name"\n\n' +
+                            "to set your account's default identity."
                         );
                     }
 

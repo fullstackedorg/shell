@@ -33,10 +33,12 @@ export class Vi {
         this.quitCallback = onQuit;
         this.rows = this.shell.terminal.rows - 1; // Reserve last line for status
         this.cols = this.shell.terminal.cols;
+    }
 
+    async init() {
         if (this.filePath) {
             try {
-                const content = fs.readFileSync(this.filePath, "utf-8");
+                const content = await fs.promises.readFile(this.filePath, "utf-8");
                 this.lines = content.split("\n");
                 if (this.lines.length === 0) this.lines = [""];
             } catch (e) {
@@ -60,13 +62,13 @@ export class Vi {
         this.quitCallback();
     }
 
-    handleInput(key: string) {
+    async handleInput(key: string) {
         if (this.mode === Mode.NORMAL) {
             this.handleNormalInput(key);
         } else if (this.mode === Mode.INSERT) {
             this.handleInsertInput(key);
         } else if (this.mode === Mode.COMMAND) {
-            this.handleCommandInput(key);
+            await this.handleCommandInput(key);
         }
         if (this.isRunning) {
             this.render();
@@ -260,7 +262,7 @@ export class Vi {
         }
     }
 
-    handleCommandInput(key: string) {
+    async handleCommandInput(key: string) {
         if (key === "\x1b") {
             this.mode = Mode.NORMAL;
             this.commandBuffer = "";
@@ -272,7 +274,7 @@ export class Vi {
             const prefix = this.commandBuffer[0];
             const content = this.commandBuffer.substring(1);
             if (prefix === ":") {
-                this.executeExCommand(content);
+                await this.executeExCommand(content);
             } else if (prefix === "?") {
                 this.executeSearch(content);
             }
@@ -320,7 +322,7 @@ export class Vi {
         this.message = `Pattern not found: ${query}`;
     }
 
-    executeExCommand(cmd: string) {
+    async executeExCommand(cmd: string) {
         if (cmd === "q") {
             if (this.isDirty) {
                 this.message = "No write since last change (add ! to override)";
@@ -331,7 +333,7 @@ export class Vi {
             this.stop();
         } else if (cmd === "w" || cmd === "w!") {
             if (this.filePath) {
-                fs.writeFileSync(
+                await fs.promises.writeFile(
                     path.resolve(this.filePath),
                     this.lines.join("\n")
                 );
@@ -342,7 +344,7 @@ export class Vi {
             }
         } else if (cmd === "wq" || cmd === "wq!") {
             if (this.filePath) {
-                fs.writeFileSync(
+                await fs.promises.writeFile(
                     path.resolve(this.filePath),
                     this.lines.join("\n")
                 );
@@ -427,11 +429,12 @@ export const vi: Command = {
     name: "vi",
     description: "Text editor",
     execute: async (args, shell, onCancel) => {
-        return new Promise<void>((resolve) => {
-            const filePath = args[0] || null;
+        const filePath = args[0] || null;
+        return new Promise<void>(async (resolve) => {
             const editor = new Vi(shell, filePath, () => {
                 resolve();
             });
+            await editor.init();
             editor.start();
         });
     }

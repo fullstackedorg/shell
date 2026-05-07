@@ -6,18 +6,18 @@
     },
     "dependencies": {
         "@fullstacked/builder-tailwindcss": "github:fullstackedorg/builder-tailwindcss",
-        "@sentry/browser": "^10.42.0",
+        "@sentry/browser": "^10.51.0",
         "@xterm/addon-fit": "^0.11.0",
         "@xterm/addon-web-links": "^0.12.0",
         "@xterm/xterm": "^6.0.0",
-        "fullstacked": "^1.0.0-alpha.1598",
+        "fullstacked": "^1.0.0-alpha.1654",
         "is-even": "^1.0.0",
         "node-ssh": "^13.2.1",
         "pretty-bytes": "^7.1.0",
         "pretty-ms": "^9.3.0"
     },
     "devDependencies": {
-        "@types/node": "^25.3.0"
+        "@types/node": "^25.6.0"
     },
     "type": "module"
 }

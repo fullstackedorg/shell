@@ -135,9 +135,9 @@ export class Shell {
     }
 
     private currentCancelHandler: (() => void) | null = null;
-    private capturedInputHandler: ((data: string) => void) | null = null;
+    private capturedInputHandler: ((data: string) => void | Promise<void>) | null = null;
 
-    captureInput(handler: (data: string) => void) {
+    captureInput(handler: (data: string) => void | Promise<void>) {
         this.capturedInputHandler = handler;
     }
 
@@ -145,9 +145,9 @@ export class Shell {
         this.capturedInputHandler = null;
     }
 
-    handleInput(e: string) {
+    async handleInput(e: string) {
         if (this.capturedInputHandler) {
-            this.capturedInputHandler(e);
+            await this.capturedInputHandler(e);
             return;
         }
 
@@ -276,18 +276,16 @@ export class Shell {
 
     private async loadHistory() {
         try {
-            if (fs.existsSync(HISTORY_FILE)) {
-                const content = await fs.promises.readFile(
-                    HISTORY_FILE,
-                    "utf-8"
-                );
-                this.history = content
-                    .split("\n")
-                    .filter((line) => line.trim() !== "");
-                this.historyIndex = this.history.length;
-            }
+            const content = await fs.promises.readFile(
+                HISTORY_FILE,
+                "utf-8"
+            );
+            this.history = content
+                .split("\n")
+                .filter((line) => line.trim() !== "");
+            this.historyIndex = this.history.length;
         } catch (e) {
-            // Silently fail if history cannot be loaded
+            // Silently fail if history cannot be loaded (e.g. file doesn't exist)
         }
     }
 
@@ -307,7 +305,6 @@ export class Shell {
         host: string
     ): Promise<{ username: string; password: string } | null> {
         try {
-            if (!fs.existsSync(GIT_CREDENTIALS_FILE)) return null;
             const content = await fs.promises.readFile(
                 GIT_CREDENTIALS_FILE,
                 "utf-8"
@@ -341,7 +338,7 @@ export class Shell {
         if (!username || !password) return;
         try {
             let credentials: string[] = [];
-            if (fs.existsSync(GIT_CREDENTIALS_FILE)) {
+            try {
                 const content = await fs.promises.readFile(
                     GIT_CREDENTIALS_FILE,
                     "utf-8"
@@ -349,6 +346,8 @@ export class Shell {
                 credentials = content
                     .split("\n")
                     .filter((line) => line.trim() !== "");
+            } catch (e) {
+                // File probably doesn't exist
             }
 
             const newCredential = `https://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${host}`;

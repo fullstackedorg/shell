@@ -16,18 +16,16 @@ export const npm: Command = {
 
         if (["run", "start", "restart", "test"].includes(command)) {
             const packageJsonPath = path.resolve(process.cwd(), "package.json");
-            if (!fs.existsSync(packageJsonPath)) {
-                shell.writeln("npm: package.json not found");
-                return 1;
-            }
-
             let packageJson: any;
             try {
-                packageJson = JSON.parse(
-                    fs.readFileSync(packageJsonPath, "utf-8")
-                );
-            } catch (e) {
-                shell.writeln("npm: failed to parse package.json");
+                const content = await fs.promises.readFile(packageJsonPath, "utf-8");
+                packageJson = JSON.parse(content);
+            } catch (e: any) {
+                if (e.code === "ENOENT") {
+                    shell.writeln("npm: package.json not found");
+                } else {
+                    shell.writeln("npm: failed to parse package.json");
+                }
                 return 1;
             }
 

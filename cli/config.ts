@@ -30,9 +30,6 @@ async function releaseLock() {
 
 async function loadConfig(): Promise<Record<string, any>> {
     try {
-        if (!fs.existsSync(CONFIG_FILE)) {
-            return {};
-        }
         const content = await fs.promises.readFile(CONFIG_FILE, "utf-8");
         return JSON.parse(content);
     } catch (e) {

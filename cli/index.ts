@@ -16,6 +16,7 @@ import { mv } from "./mv";
 import { ssh } from "./ssh";
 import { config } from "./config";
 import { version } from "./version";
+import { auth } from "./auth";
 
 export const commands: Record<string, Command> = {
     ls,
@@ -34,7 +35,8 @@ export const commands: Record<string, Command> = {
     vi,
     ssh,
     config,
-    version
+    version,
+    auth
 };
 
 export const aliases: Record<string, string> = {

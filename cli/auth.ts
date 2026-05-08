@@ -11,6 +11,11 @@ export const auth: Command = {
         onCancel: (handler: () => void) => void
     ) => {
         const dest = args[0] || "https://fullstacked.cloud";
-        authFn(dest);
+        try {
+            const response = await authFn(dest);
+            shell.writeln(JSON.stringify(response));
+        } catch (e) {
+            shell.writeln(e.message);
+        }
     }
 };

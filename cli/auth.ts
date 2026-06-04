@@ -1,4 +1,4 @@
-import authFn from "fullstacked/auth"
+import { authenticate } from "fullstacked/auth";
 import { Command } from "./types";
 import { Shell } from "../shell";
 
@@ -12,7 +12,7 @@ export const auth: Command = {
     ) => {
         const dest = args[0] || "https://fullstacked.cloud";
         try {
-            const response = await authFn(dest);
+            const response = await authenticate(dest);
             shell.writeln(JSON.stringify(response));
         } catch (e) {
             shell.writeln(e.message);

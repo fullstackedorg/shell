@@ -10,7 +10,7 @@ export const auth: Command = {
         shell: Shell,
         onCancel: (handler: () => void) => void
     ) => {
-        const dest = args[0] || "https://fullstacked.cloud";
+        const dest = args[0] || "https://auth.fullstacked.cloud";
         try {
             const response = await authenticate(dest);
             shell.writeln(JSON.stringify(response));

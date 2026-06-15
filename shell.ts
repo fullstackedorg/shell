@@ -400,22 +400,58 @@ export class Shell {
             cmd = cmd.trim();
             if (!cmd) continue;
 
+            const args = splitShellArgs(cmd);
+            const env: Record<string, string> = {};
+
+            while (
+                args.length > 0 &&
+                args[0].includes("=") &&
+                !args[0].startsWith("-")
+            ) {
+                const [key, ...rest] = args.shift()!.split("=");
+                env[key] = rest.join("=");
+            }
+
+            if (args.length === 0) {
+                // If it's just `VAR=value`, Unix persists it or does nothing.
+                // We will persist it in process.env for convenience, or just continue.
+                Object.assign(process.env, env);
+                continue;
+            }
+
+            const commandNameStr = args.join(" ");
+
             const sortedAliases = Object.keys(aliases).sort(
                 (a, b) => b.length - a.length
             );
 
             let aliased = false;
             for (const alias of sortedAliases) {
-                if (cmd === alias || cmd.startsWith(alias + " ")) {
+                if (
+                    commandNameStr === alias ||
+                    commandNameStr.startsWith(alias + " ")
+                ) {
                     const expandedCmd =
-                        aliases[alias] + cmd.slice(alias.length);
-                    // Check if expansion results in multiple commands
+                        aliases[alias] + commandNameStr.slice(alias.length);
+                    // Pass along the environment variables to the expanded commands
+                    const envPrefix = Object.keys(env)
+                        .map((k) => `${k}=${env[k]}`)
+                        .join(" ");
+
                     const expandedCommands = this.splitCommands(expandedCmd);
+                    const finalCommands = expandedCommands.map((c) =>
+                        envPrefix ? `${envPrefix} ${c.trim()}` : c
+                    );
+                    const finalCmd = finalCommands.join(" && ");
+
                     if (expandedCommands.length > 1) {
-                        lastExitCode = await this.executeLine(expandedCmd);
+                        lastExitCode = await this.executeLine(finalCmd);
                         aliased = true;
                     } else {
-                        cmd = expandedCmd;
+                        // Replace args for the current iteration
+                        const newArgs = splitShellArgs(finalCmd);
+                        args.length = 0;
+                        args.push(...newArgs);
                     }
                     break;
                 }
@@ -426,7 +462,6 @@ export class Shell {
                 continue;
             }
 
-            const args = splitShellArgs(cmd);
             const commandName = args.shift();
 
             if (!commandName) {
@@ -440,7 +475,8 @@ export class Shell {
                     this,
                     (handler) => {
                         this.currentCancelHandler = handler;
-                    }
+                    },
+                    env
                 );
                 this.currentCancelHandler = null;
 

@@ -17,6 +17,8 @@ import { ssh } from "./ssh";
 import { config } from "./config";
 import { version } from "./version";
 import { auth } from "./auth";
+import { env } from "./env";
+import { unset } from "./unset";
 
 export const commands: Record<string, Command> = {
     ls,
@@ -36,7 +38,9 @@ export const commands: Record<string, Command> = {
     ssh,
     config,
     version,
-    auth
+    auth,
+    env,
+    unset
 };
 
 export const aliases: Record<string, string> = {

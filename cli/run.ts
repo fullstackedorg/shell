@@ -8,12 +8,13 @@ export const run: Command = {
     execute: async (
         args: string[],
         shell: Shell,
-        onCancel: (handler: () => void) => void
+        onCancel: (handler: () => void) => void,
+        env?: Record<string, string>
     ) => {
         const target = args[0] || ".";
 
         try {
-            await runFn(target);
+            await runFn({ directory: target, env });
             (document.activeElement as HTMLElement)?.blur?.();
         } catch (e) {
             shell.writeln(`run: ${e.message}`);

@@ -6,6 +6,7 @@ export interface Command {
     execute: (
         args: string[],
         shell: Shell,
-        onCancel: (handler: () => void) => void
+        onCancel: (handler: () => void) => void,
+        env?: Record<string, string>
     ) => void | number | Promise<void | number>;
 }

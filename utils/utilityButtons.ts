@@ -1,4 +1,10 @@
-export function setupUtilityButtons(handleInput: (data: string) => void) {
+import type { Terminal } from "@xterm/xterm";
+import { copyText } from "./clipboard";
+
+export function setupUtilityButtons(
+    handleInput: (data: string) => void,
+    terminal: Terminal
+) {
     const isTouchDevice =
         "ontouchstart" in window || navigator.maxTouchPoints > 0;
 
@@ -117,36 +123,61 @@ export function setupUtilityButtons(handleInput: (data: string) => void) {
             height: "64px",
             transition: "background 0.1s"
         });
-        btn.addEventListener("click", (e) => {
+        let touchTriggered = false;
+
+        const trigger = (e: Event) => {
             e.preventDefault();
             e.stopPropagation();
             onClick();
+            // Refocus terminal to ensure it retains input focus
+            terminal.focus();
+        };
+
+        btn.addEventListener("click", (e) => {
+            if (touchTriggered) {
+                touchTriggered = false;
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
+            trigger(e);
         });
+
         btn.addEventListener(
             "touchstart",
-            () => (btn.style.background = "rgba(255, 255, 255, 0.4)"),
-            { passive: true }
+            (e) => {
+                touchTriggered = true;
+                btn.style.background = "rgba(255, 255, 255, 0.4)";
+                trigger(e);
+            },
+            { passive: false }
         );
-        btn.addEventListener(
-            "touchend",
-            () => (btn.style.background = "rgba(255, 255, 255, 0.25)")
-        );
-        btn.addEventListener(
-            "mouseenter",
-            () => (btn.style.background = "rgba(255, 255, 255, 0.35)")
-        );
-        btn.addEventListener(
-            "mouseleave",
-            () => (btn.style.background = "rgba(255, 255, 255, 0.25)")
-        );
-        btn.addEventListener(
-            "mousedown",
-            () => (btn.style.background = "rgba(255, 255, 255, 0.4)")
-        );
-        btn.addEventListener(
-            "mouseup",
-            () => (btn.style.background = "rgba(255, 255, 255, 0.35)")
-        );
+
+        btn.addEventListener("touchend", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            btn.style.background = "rgba(255, 255, 255, 0.25)";
+        });
+
+        btn.addEventListener("mouseenter", () => {
+            btn.style.background = "rgba(255, 255, 255, 0.35)";
+        });
+
+        btn.addEventListener("mouseleave", () => {
+            btn.style.background = "rgba(255, 255, 255, 0.25)";
+        });
+
+        btn.addEventListener("mousedown", (e) => {
+            e.preventDefault(); // Prevent focus stealing from terminal
+            e.stopPropagation();
+            btn.style.background = "rgba(255, 255, 255, 0.4)";
+        });
+
+        btn.addEventListener("mouseup", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            btn.style.background = "rgba(255, 255, 255, 0.35)";
+        });
 
         return btn;
     };
@@ -191,7 +222,7 @@ export function setupUtilityButtons(handleInput: (data: string) => void) {
         handleInput("\x1b[C")
     );
 
-    // Row 2: Operation Buttons
+    // Row 2 & 3: Operation Buttons
     const pasteBtn = createButton("PASTE", () => {
         ((globalThis as any).paste || navigator.clipboard.readText)().then(
             (text: string) => {
@@ -201,18 +232,35 @@ export function setupUtilityButtons(handleInput: (data: string) => void) {
             }
         );
     });
+
     const tabBtn = createButton("TAB", () => handleInput("\t"));
     const ctrlCBtn = createButton("Ctrl+C", () => handleInput("\u0003"));
+
     const enterBtn = createButton("Enter", () => handleInput("\r"));
+    enterBtn.style.gridColumn = "span 2";
+    enterBtn.style.width = "100%";
+
+    const escBtn = createButton("ESC", () => handleInput("\x1b"));
+    escBtn.style.gridColumn = "span 2";
+    escBtn.style.width = "100%";
+
+    const copyBtn = createButton("COPY", () => {
+        const text = terminal.getSelection();
+        if (text) {
+            copyText(text);
+        }
+    });
 
     gridContainer.append(
         leftBtn,
         downBtn,
         upBtn,
         rightBtn,
+        copyBtn,
         pasteBtn,
         tabBtn,
         ctrlCBtn,
+        escBtn,
         enterBtn
     );
 

@@ -43,10 +43,17 @@ export const ssh: Command = {
             });
 
             const shellStream = await ssh.requestShell({
-                term: "xterm-256color"
+                term: "xterm-256color",
+                cols: shell.terminal.cols,
+                rows: shell.terminal.rows
+            });
+
+            const resizeListener = shell.terminal.onResize(({ cols, rows }) => {
+                shellStream.setWindow(rows, cols, 0, 0);
             });
 
             onCancel(() => {
+                resizeListener.dispose();
                 shellStream.end();
                 ssh.dispose();
             });
@@ -61,8 +68,10 @@ export const ssh: Command = {
 
             return new Promise<number>((resolve) => {
                 shellStream.on("close", () => {
+                    resizeListener.dispose();
                     shell.releaseInput();
                     ssh.dispose();
+                    shell.write("\x1b[?1049l"); // exit alternate screen buffer (in case htop/vi was open)
                     shell.writeln(`\r\nConnection to ${host} closed.`);
                     resolve(0);
                 });

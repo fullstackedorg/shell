@@ -7,6 +7,7 @@ import { githubDeviceFlow } from "./utils/githubDeviceFlow";
 import { handleAutocomplete } from "./utils/autocomplete";
 import { setupUtilityButtons } from "./utils/utilityButtons";
 import { splitShellArgs } from "./utils/args";
+import { copyText } from "./utils/clipboard";
 import fs from "fs";
 import path from "path";
 
@@ -28,6 +29,17 @@ export class Shell {
     gitAuthManager: Awaited<ReturnType<typeof git.createGitAuthManager>>;
     private inputHandler: ((e: string) => void) | null = null;
     private _lastDrawnCursorPos = 0;
+
+    // Touch selection fields
+    private touchStartPos: { x: number; y: number } | null = null;
+    private touchStartCell: { col: number; row: number } | null = null;
+    private touchSelectionAnchorStart: { col: number; row: number } | null =
+        null;
+    private touchSelectionAnchorEnd: { col: number; row: number } | null = null;
+    private touchSelectTimer: any = null;
+    private isTouchSelecting: boolean = false;
+    private lastTouchPos: { x: number; y: number } | null = null;
+    private autoScrollTimer: any = null;
 
     constructor(terminal: Terminal) {
         this.terminal = terminal;
@@ -71,10 +83,255 @@ export class Shell {
         });
 
         this.setupTouchToolbar();
+
+        if (this.terminal.element) {
+            this.setupTouchSelection(this.terminal.element);
+        } else {
+            const checkOpened = setInterval(() => {
+                if (this.terminal.element) {
+                    clearInterval(checkOpened);
+                    this.setupTouchSelection(this.terminal.element);
+                }
+            }, 100);
+        }
     }
 
     private setupTouchToolbar() {
-        setupUtilityButtons((char: string) => this.handleInput(char));
+        setupUtilityButtons(
+            (char: string) => this.handleInput(char),
+            this.terminal
+        );
+    }
+
+    private getCellFromCoords(
+        clientX: number,
+        clientY: number
+    ): { col: number; row: number } | null {
+        if (!this.terminal.element) return null;
+        const screenEl = this.terminal.element.querySelector(".xterm-screen");
+        if (!screenEl) return null;
+
+        const rect = screenEl.getBoundingClientRect();
+        const relativeX = clientX - rect.left;
+        const relativeY = clientY - rect.top;
+
+        const charWidth = rect.width / this.terminal.cols;
+        const charHeight = rect.height / this.terminal.rows;
+
+        let col = Math.floor(relativeX / charWidth);
+        let row = Math.floor(relativeY / charHeight);
+
+        col = Math.max(0, Math.min(col, this.terminal.cols - 1));
+        row = Math.max(0, Math.min(row, this.terminal.rows - 1));
+
+        const bufferRow = row + this.terminal.buffer.active.viewportY;
+        return { col, row: bufferRow };
+    }
+
+    private getWordRangeAt(
+        text: string,
+        col: number
+    ): { start: number; end: number } {
+        if (col < 0 || col >= text.length) return { start: col, end: col };
+
+        const isWordChar = (char: string) => /^[a-zA-Z0-9_\-./]$/.test(char);
+
+        let start = col;
+        while (start > 0 && isWordChar(text[start - 1])) {
+            start--;
+        }
+
+        let end = col;
+        while (end < text.length - 1 && isWordChar(text[end + 1])) {
+            end++;
+        }
+
+        return { start, end };
+    }
+
+    private selectWordAt(col: number, row: number) {
+        const line = this.terminal.buffer.active.getLine(row);
+        if (line) {
+            const text = line.translateToString(false);
+            const { start, end } = this.getWordRangeAt(text, col);
+            const length = end - start + 1;
+            this.terminal.select(start, row, length);
+            this.touchSelectionAnchorStart = { col: start, row };
+            this.touchSelectionAnchorEnd = { col: end, row };
+        } else {
+            this.terminal.select(col, row, 1);
+            this.touchSelectionAnchorStart = { col, row };
+            this.touchSelectionAnchorEnd = { col, row };
+        }
+    }
+
+    private selectRange(current: { col: number; row: number }) {
+        if (!this.touchSelectionAnchorStart || !this.touchSelectionAnchorEnd)
+            return;
+
+        const cols = this.terminal.cols;
+        const startIndex =
+            this.touchSelectionAnchorStart.row * cols +
+            this.touchSelectionAnchorStart.col;
+        const endIndex =
+            this.touchSelectionAnchorEnd.row * cols +
+            this.touchSelectionAnchorEnd.col;
+        const currentIndex = current.row * cols + current.col;
+
+        let selStartCol = this.touchSelectionAnchorStart.col;
+        let selStartRow = this.touchSelectionAnchorStart.row;
+        let selEndCol = this.touchSelectionAnchorEnd.col;
+        let selEndRow = this.touchSelectionAnchorEnd.row;
+
+        if (currentIndex > endIndex) {
+            selEndCol = current.col;
+            selEndRow = current.row;
+        } else if (currentIndex < startIndex) {
+            selStartCol = current.col;
+            selStartRow = current.row;
+        }
+
+        const selStartIndex = selStartRow * cols + selStartCol;
+        const selEndIndex = selEndRow * cols + selEndCol;
+        const length = selEndIndex - selStartIndex + 1;
+
+        if (length > 0) {
+            this.terminal.select(selStartCol, selStartRow, length);
+        }
+    }
+
+    private startAutoScroll(direction: number) {
+        if (this.autoScrollTimer) return;
+        this.autoScrollTimer = setInterval(() => {
+            this.terminal.scrollLines(direction);
+            if (this.lastTouchPos) {
+                const cell = this.getCellFromCoords(
+                    this.lastTouchPos.x,
+                    this.lastTouchPos.y
+                );
+                if (cell) {
+                    this.selectRange(cell);
+                }
+            }
+        }, 100);
+    }
+
+    private stopAutoScroll() {
+        if (this.autoScrollTimer) {
+            clearInterval(this.autoScrollTimer);
+            this.autoScrollTimer = null;
+        }
+    }
+
+    private setupTouchSelection(element: HTMLElement) {
+        element.addEventListener(
+            "touchstart",
+            (e: TouchEvent) => {
+                if (e.touches.length !== 1) return;
+
+                const touch = e.touches[0];
+                this.touchStartPos = { x: touch.clientX, y: touch.clientY };
+                this.lastTouchPos = { x: touch.clientX, y: touch.clientY };
+
+                const cell = this.getCellFromCoords(
+                    touch.clientX,
+                    touch.clientY
+                );
+                if (!cell) return;
+
+                this.touchStartCell = cell;
+                this.isTouchSelecting = false;
+
+                if (this.touchSelectTimer) {
+                    clearTimeout(this.touchSelectTimer);
+                }
+
+                this.touchSelectTimer = setTimeout(() => {
+                    this.isTouchSelecting = true;
+                    if (navigator.vibrate) {
+                        navigator.vibrate(50);
+                    }
+                    this.selectWordAt(cell.col, cell.row);
+                }, 500);
+            },
+            { passive: false }
+        );
+
+        element.addEventListener(
+            "touchmove",
+            (e: TouchEvent) => {
+                if (!this.touchStartPos) return;
+
+                const touch = e.touches[0];
+                this.lastTouchPos = { x: touch.clientX, y: touch.clientY };
+
+                const dx = touch.clientX - this.touchStartPos.x;
+                const dy = touch.clientY - this.touchStartPos.y;
+
+                if (!this.isTouchSelecting) {
+                    if (Math.sqrt(dx * dx + dy * dy) > 10) {
+                        if (this.touchSelectTimer) {
+                            clearTimeout(this.touchSelectTimer);
+                            this.touchSelectTimer = null;
+                        }
+                    }
+                } else {
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    const cell = this.getCellFromCoords(
+                        touch.clientX,
+                        touch.clientY
+                    );
+                    if (cell) {
+                        this.selectRange(cell);
+                    }
+
+                    // Auto-scroll detection
+                    const rect = element.getBoundingClientRect();
+                    const relativeY = touch.clientY - rect.top;
+
+                    if (relativeY < 20) {
+                        this.startAutoScroll(-1);
+                    } else if (relativeY > rect.height - 20) {
+                        this.startAutoScroll(1);
+                    } else {
+                        this.stopAutoScroll();
+                    }
+                }
+            },
+            { passive: false }
+        );
+
+        const endHandler = () => {
+            if (this.touchSelectTimer) {
+                clearTimeout(this.touchSelectTimer);
+                this.touchSelectTimer = null;
+            }
+
+            this.stopAutoScroll();
+
+            if (this.isTouchSelecting) {
+                this.isTouchSelecting = false;
+            }
+
+            this.touchStartPos = null;
+            this.touchStartCell = null;
+            this.lastTouchPos = null;
+        };
+
+        element.addEventListener("touchend", endHandler);
+        element.addEventListener("touchcancel", endHandler);
+
+        element.addEventListener("keydown", (e: KeyboardEvent) => {
+            if (e.metaKey && (e.key === "c" || e.key === "C")) {
+                const selection = this.terminal.getSelection();
+                if (selection) {
+                    e.preventDefault();
+                    copyText(selection);
+                }
+            }
+        });
     }
 
     prompt() {

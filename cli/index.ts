@@ -19,6 +19,7 @@ import { version } from "./version";
 import { auth } from "./auth";
 import { env } from "./env";
 import { unset } from "./unset";
+import { curl } from "./curl";
 
 export const commands: Record<string, Command> = {
     ls,
@@ -40,7 +41,8 @@ export const commands: Record<string, Command> = {
     version,
     auth,
     env,
-    unset
+    unset,
+    curl
 };
 
 export const aliases: Record<string, string> = {

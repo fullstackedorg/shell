@@ -227,6 +227,14 @@ export class Shell {
         element.addEventListener(
             "touchstart",
             (e: TouchEvent) => {
+                // 4-finger tap: instant Ctrl+C (cancels initScript / running command)
+                if (e.touches.length === 4) {
+                    e.preventDefault();
+                    if (navigator.vibrate) navigator.vibrate([40, 30, 40]);
+                    this.handleInput("\u0003");
+                    return;
+                }
+
                 if (e.touches.length !== 1) return;
 
                 const touch = e.touches[0];
@@ -392,6 +400,7 @@ export class Shell {
     }
 
     private currentCancelHandler: (() => void) | null = null;
+    private initScriptAbortController: AbortController | null = null;
     private capturedInputHandler:
         | ((data: string) => void | Promise<void>)
         | null = null;
@@ -426,11 +435,18 @@ export class Shell {
                 this.command = "";
                 this.cursorPos = 0;
                 break;
-            case "\u0003": // Ctrl+C
+            case "\u0003": {
+                // Ctrl+C
+                const wasInInitScript = !!this.initScriptAbortController;
+                if (this.initScriptAbortController) {
+                    this.initScriptAbortController.abort();
+                    this.initScriptAbortController = null;
+                }
                 if (this.currentCancelHandler) {
                     this.currentCancelHandler();
                     this.currentCancelHandler = null;
-                    return;
+                    if (!wasInInitScript) return;
+                    // Fall through: init script was cancelled, still show ^C + prompt
                 }
                 this.terminal.write("^C");
                 this.prompt();
@@ -438,6 +454,7 @@ export class Shell {
                 this.cursorPos = 0;
                 this.historyIndex = this.history.length;
                 break;
+            }
             case "\u007F": // Backspace
                 if (this.cursorPos > 0) {
                     this.command =
@@ -523,13 +540,34 @@ export class Shell {
     }
 
     private async runInitScript() {
+        const abort = new AbortController();
+        this.initScriptAbortController = abort;
         try {
             const initScript = await getConfig("initScript");
-            if (initScript && typeof initScript === "string") {
-                await this.executeCommand(initScript);
+            if (
+                initScript &&
+                typeof initScript === "string" &&
+                !abort.signal.aborted
+            ) {
+                // Split into individual lines and run each, stopping on abort
+                const lines = initScript
+                    .split("\n")
+                    .map((l) => l.trim())
+                    .filter(Boolean);
+                for (const line of lines) {
+                    if (abort.signal.aborted) break;
+                    await this.executeLine(line, abort.signal);
+                }
+                if (!abort.signal.aborted) {
+                    this.prompt();
+                }
             }
         } catch (e) {
             // Silently fail if initScript cannot be run
+        } finally {
+            if (this.initScriptAbortController === abort) {
+                this.initScriptAbortController = null;
+            }
         }
     }
 
@@ -646,7 +684,7 @@ export class Shell {
         this.prompt();
     }
 
-    async executeLine(cmdStr: string): Promise<number> {
+    async executeLine(cmdStr: string, signal?: AbortSignal): Promise<number> {
         // Split by && but respect quotes if possible?
         // For now simple split as requested, ensuring we don't break string literals if we can avoid it.
         // But a simple split("&&") is the requested task.
@@ -654,6 +692,7 @@ export class Shell {
         let lastExitCode = 0;
 
         for (let cmd of commandsToRun) {
+            if (signal?.aborted) break;
             cmd = cmd.trim();
             if (!cmd) continue;
 
@@ -702,7 +741,7 @@ export class Shell {
                     const finalCmd = finalCommands.join(" && ");
 
                     if (expandedCommands.length > 1) {
-                        lastExitCode = await this.executeLine(finalCmd);
+                        lastExitCode = await this.executeLine(finalCmd, signal);
                         aliased = true;
                     } else {
                         // Replace args for the current iteration
@@ -827,13 +866,17 @@ export class Shell {
             const usernamePrompt = resource
                 ? `Username for '${resource}': `
                 : "Username: ";
-            const passwordPrompt = resource
-                ? `Password for '${resource}': `
-                : "Password: ";
 
             if (!username) {
                 username = await this.readInput(usernamePrompt);
             }
+
+            const passwordPrompt =
+                username && resource
+                    ? `${username}@${resource}'s password: `
+                    : resource
+                      ? `Password for '${resource}': `
+                      : "Password: ";
 
             const password = await this.readInput(passwordPrompt, true);
             return { username, password };

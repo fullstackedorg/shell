@@ -20,6 +20,9 @@ import { auth } from "./auth";
 import { env } from "./env";
 import { unset } from "./unset";
 import { curl } from "./curl";
+import { echo } from "./echo";
+import { sleep } from "./sleep";
+import { exit } from "./exit";
 
 export const commands: Record<string, Command> = {
     ls,
@@ -42,7 +45,10 @@ export const commands: Record<string, Command> = {
     auth,
     env,
     unset,
-    curl
+    curl,
+    echo,
+    sleep,
+    exit
 };
 
 export const aliases: Record<string, string> = {

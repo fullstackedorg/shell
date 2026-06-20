@@ -247,7 +247,11 @@ export function setupUtilityButtons(
     const copyBtn = createButton("COPY", () => {
         const text = terminal.getSelection();
         if (text) {
-            copyText(text);
+            if ((globalThis as any).copy) {
+                (globalThis as any).copy(text);
+            } else {
+                copyText(text);
+            }
         }
     });
 

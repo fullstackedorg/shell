@@ -2,7 +2,8 @@ import { Terminal } from "@xterm/xterm";
 import { commands, aliases } from "./cli";
 import { getConfig } from "./cli/config";
 import { WebLinksAddon } from "@xterm/addon-web-links";
-import git from "fullstacked/git";
+import plugin from "fullstacked/plugin";
+import pluginTailwindcss, { initialize } from "@fullstacked/tailwindcss";
 import { githubDeviceFlow } from "./utils/githubDeviceFlow";
 import { handleAutocomplete } from "./utils/autocomplete";
 import { setupUtilityButtons } from "./utils/utilityButtons";
@@ -26,7 +27,6 @@ export class Shell {
     cursorPos: number = 0;
     history: string[] = [];
     historyIndex: number = 0;
-    gitAuthManager: Awaited<ReturnType<typeof git.createGitAuthManager>>;
     private inputHandler: ((e: string) => void) | null = null;
     private _lastDrawnCursorPos = 0;
 
@@ -46,9 +46,25 @@ export class Shell {
         this.terminal.loadAddon(new WebLinksAddon());
         this.loadHistory();
         this.runInitScript();
-        git.createGitAuthManager().then((m) => {
-            this.gitAuthManager = m;
-            this.gitAuthManager.on("auth", async (host: string) => {
+        this.loadPlugins();
+
+        this.setupTouchToolbar();
+
+        if (this.terminal.element) {
+            this.setupTouchSelection(this.terminal.element);
+        } else {
+            const checkOpened = setInterval(() => {
+                if (this.terminal.element) {
+                    clearInterval(checkOpened);
+                    this.setupTouchSelection(this.terminal.element);
+                }
+            }, 100);
+        }
+    }
+
+    private async loadPlugins() {
+        await plugin.register("git-auth", {
+            callback: async (host) => {
                 let auth = await this.getGitCredentials(host);
 
                 if (!auth) {
@@ -66,34 +82,25 @@ export class Shell {
                 }
 
                 if (auth) {
-                    this.gitAuthManager.writeEvent("authResponse", host, auth);
                     await this.saveGitCredentials(
                         host,
                         auth.username,
                         auth.password
                     );
+                    return auth;
                 } else {
                     this.writeln("Authentication failed or cancelled.");
-                    this.gitAuthManager.writeEvent("authResponse", host, {
-                        username: "",
-                        password: ""
-                    }); // Cancel/fail
+                    return null;
                 }
-            });
+            }
         });
 
-        this.setupTouchToolbar();
-
-        if (this.terminal.element) {
-            this.setupTouchSelection(this.terminal.element);
-        } else {
-            const checkOpened = setInterval(() => {
-                if (this.terminal.element) {
-                    clearInterval(checkOpened);
-                    this.setupTouchSelection(this.terminal.element);
-                }
-            }, 100);
-        }
+        await initialize({
+            lightningcss: `build:${path.sep}lightningcss_node.wasm`,
+            oxide: `build:${path.sep}oxide_wasm_bg.wasm`,
+            tailwindcss: `build:${path.sep}tailwindcss`
+        });
+        await plugin.register("build", pluginTailwindcss);
     }
 
     private setupTouchToolbar() {
@@ -402,8 +409,7 @@ export class Shell {
     private currentCancelHandler: (() => void) | null = null;
     private initScriptAbortController: AbortController | null = null;
     private capturedInputHandler:
-        | ((data: string) => void | Promise<void>)
-        | null = null;
+        ((data: string) => void | Promise<void>) | null = null;
 
     captureInput(handler: (data: string) => void | Promise<void>) {
         this.capturedInputHandler = handler;

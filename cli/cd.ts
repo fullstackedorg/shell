@@ -12,7 +12,7 @@ export const cd: Command = {
         onCancel: (handler: () => void) => void
     ) => {
         const dest = args[0] || path.sep;
-        const target = dest.startsWith(path.sep)
+        const target = path.isAbsolute(dest)
             ? dest
             : path.resolve(process.cwd(), dest);
         try {

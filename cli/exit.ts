@@ -9,8 +9,7 @@ export const exit: Command = {
         shell: Shell,
         onCancel: (handler: () => void) => void
     ) => {
-        if (!process.exit()) {
-            shell.writeln("exit not implemented");
-        }
+        const delay = args[0] ? parseInt(args[0], 10) : undefined;
+        await shell.exit(isNaN(delay) ? undefined : delay);
     }
 };

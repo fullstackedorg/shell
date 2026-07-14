@@ -3,7 +3,6 @@ import { commands, aliases } from "./cli";
 import { getConfig } from "./cli/config";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import plugin from "fullstacked/plugin";
-import pluginTailwindcss, { initialize } from "@fullstacked/tailwindcss";
 import { githubDeviceFlow } from "./utils/githubDeviceFlow";
 import { handleAutocomplete } from "./utils/autocomplete";
 import { setupUtilityButtons } from "./utils/utilityButtons";
@@ -28,6 +27,12 @@ export class Shell {
     history: string[] = [];
     historyIndex: number = 0;
     private inputHandler: ((e: string) => void) | null = null;
+    private activeExecutions = new Set<Promise<any>>();
+    private currentExecutionPromise: Promise<any> | null = null;
+    private exitAbortController: AbortController | null = null;
+    private isExiting = false;
+    private isExitPrevented = false;
+    private exitPreventedTimer: any = null;
     private _lastDrawnCursorPos = 0;
 
     // Touch selection fields
@@ -94,13 +99,6 @@ export class Shell {
                 }
             }
         });
-
-        await initialize({
-            lightningcss: `build:${path.sep}lightningcss_node.wasm`,
-            oxide: `build:${path.sep}oxide_wasm_bg.wasm`,
-            tailwindcss: `build:${path.sep}tailwindcss`
-        });
-        await plugin.register("build", pluginTailwindcss);
     }
 
     private setupTouchToolbar() {
@@ -420,6 +418,23 @@ export class Shell {
     }
 
     async handleInput(e: string) {
+        if (e === "\u0003") {
+            this.isExitPrevented = true;
+            if (this.exitPreventedTimer) {
+                clearTimeout(this.exitPreventedTimer);
+            }
+            this.exitPreventedTimer = setTimeout(() => {
+                this.isExitPrevented = false;
+                this.exitPreventedTimer = null;
+            }, 5000);
+
+            if (this.isExiting) {
+                this.terminal.write("^C");
+                this.exitAbortController?.abort();
+                return;
+            }
+        }
+
         if (this.capturedInputHandler) {
             await this.capturedInputHandler(e);
             return;
@@ -685,12 +700,105 @@ export class Shell {
         }
     }
 
-    async executeCommand(cmdStr: string) {
-        await this.executeLine(cmdStr);
-        this.prompt();
+    async executeCommand(cmdStr: string, opts?: { cwd?: string; env?: Record<string, string> }) {
+        const originalCwd = process.cwd();
+        if (opts?.cwd) {
+            try {
+                process.chdir(opts.cwd);
+            } catch (e: any) {
+                this.writeln(`Error: could not change directory to ${opts.cwd}: ${e.message}`);
+                this.prompt();
+                return;
+            }
+        }
+
+        const executionPromise = (async () => {
+            try {
+                await this.executeLine(cmdStr, undefined, opts?.env);
+            } finally {
+                if (opts?.cwd) {
+                    try {
+                        process.chdir(originalCwd);
+                    } catch {}
+                }
+                if (!this.isExiting) {
+                    this.prompt();
+                }
+            }
+        })();
+
+        this.activeExecutions.add(executionPromise);
+        const prev = this.currentExecutionPromise;
+        this.currentExecutionPromise = executionPromise;
+        try {
+            await executionPromise;
+        } finally {
+            this.currentExecutionPromise = prev;
+            this.activeExecutions.delete(executionPromise);
+        }
     }
 
-    async executeLine(cmdStr: string, signal?: AbortSignal): Promise<number> {
+    async exit(delay?: number) {
+        if (this.isExitPrevented) {
+            return;
+        }
+        this.isExiting = true;
+        this.exitAbortController = new AbortController();
+        const signal = this.exitAbortController.signal;
+
+        const ownPromise = this.currentExecutionPromise;
+        const otherPromises: Promise<any>[] = [];
+        for (const promise of this.activeExecutions) {
+            if (promise !== ownPromise) {
+                otherPromises.push(promise);
+            }
+        }
+
+        if (otherPromises.length > 0) {
+            await Promise.allSettled(otherPromises);
+        }
+
+        if (signal.aborted) {
+            this.isExiting = false;
+            this.exitAbortController = null;
+            return;
+        }
+
+        if (delay && delay > 0) {
+            try {
+                await new Promise<void>((resolve, reject) => {
+                    const timer = setTimeout(() => {
+                        signal.removeEventListener("abort", onAbort);
+                        resolve();
+                    }, delay);
+
+                    const onAbort = () => {
+                        clearTimeout(timer);
+                        reject(new Error("ABORTED"));
+                    };
+
+                    signal.addEventListener("abort", onAbort);
+                });
+            } catch (e: any) {
+                if (e.message === "ABORTED") {
+                    this.isExiting = false;
+                    this.exitAbortController = null;
+                    this.writeln("\r\nExit cancelled.");
+                    this.prompt();
+                    return;
+                }
+            }
+        }
+
+        this.exitAbortController = null;
+        if (!process.exit()) {
+            this.writeln("exit not implemented");
+            this.isExiting = false;
+            this.prompt();
+        }
+    }
+
+    async executeLine(cmdStr: string, signal?: AbortSignal, env?: Record<string, string>): Promise<number> {
         // Split by && but respect quotes if possible?
         // For now simple split as requested, ensuring we don't break string literals if we can avoid it.
         // But a simple split("&&") is the requested task.
@@ -703,7 +811,7 @@ export class Shell {
             if (!cmd) continue;
 
             const args = splitShellArgs(cmd);
-            const env: Record<string, string> = {};
+            const cmdEnv: Record<string, string> = { ...env };
 
             while (
                 args.length > 0 &&
@@ -711,13 +819,13 @@ export class Shell {
                 !args[0].startsWith("-")
             ) {
                 const [key, ...rest] = args.shift()!.split("=");
-                env[key] = rest.join("=");
+                cmdEnv[key] = rest.join("=");
             }
 
             if (args.length === 0) {
                 // If it's just `VAR=value`, Unix persists it or does nothing.
                 // We will persist it in process.env for convenience, or just continue.
-                Object.assign(process.env, env);
+                Object.assign(process.env, cmdEnv);
                 continue;
             }
 
@@ -733,25 +841,20 @@ export class Shell {
                     commandNameStr === alias ||
                     commandNameStr.startsWith(alias + " ")
                 ) {
-                    const expandedCmd =
-                        aliases[alias] + commandNameStr.slice(alias.length);
-                    // Pass along the environment variables to the expanded commands
-                    const envPrefix = Object.keys(env)
-                        .map((k) => `${k}=${env[k]}`)
-                        .join(" ");
+                    const argsSuffix = commandNameStr.slice(alias.length);
+                    const expandedCmd = aliases[alias]
+                        .split("&&")
+                        .map((cmd) => cmd.trim() + argsSuffix)
+                        .join(" && ");
 
                     const expandedCommands = this.splitCommands(expandedCmd);
-                    const finalCommands = expandedCommands.map((c) =>
-                        envPrefix ? `${envPrefix} ${c.trim()}` : c
-                    );
-                    const finalCmd = finalCommands.join(" && ");
 
                     if (expandedCommands.length > 1) {
-                        lastExitCode = await this.executeLine(finalCmd, signal);
+                        lastExitCode = await this.executeLine(expandedCmd, signal, cmdEnv);
                         aliased = true;
                     } else {
                         // Replace args for the current iteration
-                        const newArgs = splitShellArgs(finalCmd);
+                        const newArgs = splitShellArgs(expandedCmd);
                         args.length = 0;
                         args.push(...newArgs);
                     }
@@ -778,7 +881,7 @@ export class Shell {
                     (handler) => {
                         this.currentCancelHandler = handler;
                     },
-                    env
+                    cmdEnv
                 );
                 this.currentCancelHandler = null;
 
@@ -807,23 +910,42 @@ export class Shell {
         );
     }
 
-    private readInput(
+    askQuestion(
         prompt: string,
-        hidden: boolean = false
+        opts?: boolean | { hidden?: boolean; defaultValue?: string }
     ): Promise<string> {
+        const options = typeof opts === "boolean" ? { hidden: opts } : opts;
+        const hidden = options?.hidden ?? false;
+        const defaultValue = options?.defaultValue;
+
         return new Promise((resolve, reject) => {
-            this.terminal.write(prompt);
+            if (!hidden && defaultValue) {
+                this.terminal.write(`${prompt}\x1b[90m ${defaultValue}${"\b".repeat(defaultValue.length + 1)}`);
+            } else {
+                this.terminal.write(prompt);
+            }
             let input = "";
             let cursor = 0;
 
             this.inputHandler = (e: string) => {
                 switch (e) {
                     case "\r": // Enter
-                        this.terminal.write("\r\n");
                         this.inputHandler = null;
-                        resolve(input);
+                        if (input.length === 0 && defaultValue) {
+                            // Reset color, clear to the right, and print default value
+                            this.terminal.write(`\x1b[0m\x1b[K${defaultValue}\r\n`);
+                            resolve(defaultValue);
+                        } else {
+                            this.terminal.write("\r\n");
+                            resolve(input);
+                        }
                         break;
                     case "\u0003": // Ctrl+C
+                        this.terminal.write("\x1b[0m");
+                        if (!hidden && input.length === 0 && defaultValue) {
+                            // Clear placeholder before writing ^C
+                            this.terminal.write("\x1b[K");
+                        }
                         this.terminal.write("^C\r\n");
                         this.inputHandler = null;
                         reject(new Error("CANCELED"));
@@ -835,6 +957,11 @@ export class Shell {
                                 input.slice(cursor);
                             cursor--;
                             if (!hidden) this.terminal.write("\b \b");
+
+                            // If input becomes empty and we have a defaultValue, show placeholder
+                            if (!hidden && input.length === 0 && defaultValue) {
+                                this.terminal.write(`\x1b[90m ${defaultValue}${"\b".repeat(defaultValue.length + 1)}`);
+                            }
                         }
                         break;
                     case "\x1b[A": // Up Arrow
@@ -847,6 +974,11 @@ export class Shell {
                         break;
                     default:
                         if (e >= " " && e <= "~") {
+                            // If input is currently empty and we have a defaultValue, clear the placeholder first
+                            if (!hidden && input.length === 0 && defaultValue) {
+                                this.terminal.write("\x1b[0m\x1b[K");
+                            }
+
                             input =
                                 input.slice(0, cursor) +
                                 e +
@@ -874,7 +1006,7 @@ export class Shell {
                 : "Username: ";
 
             if (!username) {
-                username = await this.readInput(usernamePrompt);
+                username = await this.askQuestion(usernamePrompt);
             }
 
             const passwordPrompt =
@@ -884,7 +1016,7 @@ export class Shell {
                       ? `Password for '${resource}': `
                       : "Password: ";
 
-            const password = await this.readInput(passwordPrompt, true);
+            const password = await this.askQuestion(passwordPrompt, { hidden: true });
             return { username, password };
         } catch (e) {
             return null;

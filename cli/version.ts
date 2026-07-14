@@ -12,11 +12,8 @@ export const version: Command = {
             return 1;
         }
 
-        const shellVersion = await fs.promises.readFile("build:/.build");
-
         shell.writeln(
-            `FullStacked v${v.major}.${v.minor}.${v.patch} (build ${v.build}), branch ${v.branch}, hash ${v.hash.substring(0, 8)}\n` +
-                `shell v${shellVersion}`
+            `FullStacked v${v.major}.${v.minor}.${v.patch} (build ${v.build}), branch ${v.branch}, hash ${v.hash.substring(0, 8)}`
         );
     }
 };

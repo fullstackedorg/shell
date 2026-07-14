@@ -1,6 +1,7 @@
 import runFn from "fullstacked/run";
 import { Shell } from "../shell";
 import { Command } from "./types";
+import { parseArgs } from "./utils";
 
 export const run: Command = {
     name: "run",
@@ -11,7 +12,8 @@ export const run: Command = {
         onCancel: (handler: () => void) => void,
         env?: Record<string, string>
     ) => {
-        const target = args[0] || ".";
+        const { positionals } = parseArgs(args);
+        const target = positionals[0] || ".";
 
         try {
             await runFn({ directory: target, env });

@@ -1,9 +1,11 @@
-import "./sentry.ts";
-
 import "@xterm/xterm/css/xterm.css";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { Shell } from "./shell";
+
+declare global {
+    var shell: Shell;
+}
 
 document.title = "FullStacked";
 
@@ -28,6 +30,7 @@ fitAddon.fit();
 window.addEventListener("resize", fitAddon.fit.bind(fitAddon));
 
 const shell = new Shell(terminal);
+globalThis.shell = shell;
 
 const v = (process.versions as any).fullstacked;
 terminal.writeln(

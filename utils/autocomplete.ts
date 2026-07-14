@@ -25,7 +25,7 @@ export async function handleAutocomplete(
     } else {
         const cmdName = args[0];
         // Simple check if command supports file completion (for now assume ls, cat, cd, mkdir, rm, vi, mv do)
-        if (["ls", "cat", "cd", "mkdir", "rm", "vi", "mv"].includes(cmdName)) {
+        if (["ls", "cat", "cd", "mkdir", "rm", "vi", "mv", "exec", "node"].includes(cmdName)) {
             // The raw last token may contain escape sequences; the parsed last arg is the actual path prefix
             const partialPath = args.at(-1) || "";
             const isTrailingSlash = partialPath.endsWith("/");

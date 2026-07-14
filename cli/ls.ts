@@ -26,10 +26,15 @@ export const ls: Command = {
 
         const showLong = flags.includes("l");
         const humanReadable = flags.includes("h");
+        const showAll = flags.includes("a");
 
         const dir = path.resolve(otherArgs[0] || ".");
         try {
-            const files = await fs.promises.readdir(dir);
+            let files = await fs.promises.readdir(dir);
+
+            if (!showAll) {
+                files = files.filter((file) => !file.startsWith("."));
+            }
 
             if (showLong) {
                 const fileStats = await Promise.all(

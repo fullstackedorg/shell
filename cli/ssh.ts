@@ -25,14 +25,19 @@ export const ssh: Command = {
         const ssh = new NodeSSH();
 
         try {
-            const auth = await shell.requestUsernamePassword(host, username);
-            if (!auth || !auth.username) {
+
+            if (!username) {
+                username = await shell.askQuestion(`Username for '${host}': `);
+            }
+            if (!username) {
                 shell.writeln("Username required");
                 return 1;
             }
 
-            username = auth.username;
-            const { password } = auth;
+            const password = await shell.askQuestion(
+                `${username}@${host}'s password: `,
+                { hidden: true }
+            );
 
             shell.writeln(`Connecting to ${username}@${host}...`);
 

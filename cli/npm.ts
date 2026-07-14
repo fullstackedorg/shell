@@ -10,7 +10,8 @@ export const npm: Command = {
     execute: async (
         args: string[],
         shell: Shell,
-        onCancel: (handler: () => void) => void
+        onCancel: (handler: () => void) => void,
+        env?: Record<string, string>
     ) => {
         const command = args[0];
 
@@ -47,6 +48,15 @@ export const npm: Command = {
                 scriptName = args[1];
             }
 
+            const dashDashIndex = args.indexOf("--");
+            const forwardedArgs = dashDashIndex !== -1 ? args.slice(dashDashIndex + 1) : [];
+            const extraArgsStr = forwardedArgs.length > 0 ? " " + forwardedArgs.map(arg => {
+                if (arg.includes(" ") && !arg.startsWith('"') && !arg.startsWith("'")) {
+                    return `"${arg.replace(/"/g, '\\"')}"`;
+                }
+                return arg;
+            }).join(" ") : "";
+
             const runScript = async (name: string): Promise<number> => {
                 const preName = `pre${name}`;
                 if (scripts[preName]) {
@@ -64,14 +74,10 @@ export const npm: Command = {
                 }
 
                 if (scripts[name]) {
-                    // Replace remaining args? npm passes extra args to the script?
-                    // "npm run test -- --arg"
-                    // Here we just execute the script command line.
-                    // We don't handle extra args appending for now unless requested.
-                    // Use executeLine
+                    const scriptCmd = scripts[name] + (name === scriptName ? extraArgsStr : "");
                     shell.writeln(`> ${name}`);
-                    shell.writeln(`> ${scripts[name]}`);
-                    return await shell.executeLine(scripts[name]);
+                    shell.writeln(`> ${scriptCmd}`);
+                    return await shell.executeLine(scriptCmd, undefined, env);
                 } else if (
                     !["start", "restart", "test"].includes(name) ||
                     name.startsWith("pre")

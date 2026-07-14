@@ -25,6 +25,12 @@ export function getDirectory(flags: Record<string, string | boolean>) {
     return (flags["directory"] as string) || process.cwd();
 }
 
+export function getPlugin(args: string[]): string | undefined {
+    const { flags } = parseArgs(args);
+    const val = flags["plugin"] || flags["p"];
+    return typeof val === "string" ? val : undefined;
+}
+
 export async function runDuplex(
     duplexPromise: ReturnType<typeof import("fullstacked/git").clone>,
     shell: Shell

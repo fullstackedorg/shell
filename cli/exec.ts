@@ -50,13 +50,18 @@ export const exec: Command = {
                 try {
                     const response = await fetch(file);
                     if (!response.ok) {
-                        shell.writeln(`Error: failed to fetch: ${response.status} ${response.statusText}`);
+                        shell.writeln(
+                            `Error: failed to fetch: ${response.status} ${response.statusText}`
+                        );
                         return 1;
                     }
                     const codeText = await response.text();
 
                     const ext = path.extname(parsedUrl.pathname) || ".ts";
-                    tempFilePath = path.join(process.cwd(), `.tmp-exec-${Date.now()}${ext}`);
+                    tempFilePath = path.join(
+                        process.cwd(),
+                        `.tmp-exec-${Date.now()}${ext}`
+                    );
                     await fs.promises.writeFile(tempFilePath, codeText);
                     targetFilePath = tempFilePath;
                     isTempFile = true;
@@ -92,11 +97,11 @@ export const exec: Command = {
                 try {
                     const resolved = require.resolve(`./${outputFile}`);
                     delete require.cache[resolved];
-                } catch { }
+                } catch {}
                 if (isTempFile && tempFilePath) {
                     fs.promises.rm(tempFilePath).catch(() => {});
                 }
-                return fs.promises.rm(outputFile).catch(() => { });
+                return fs.promises.rm(outputFile).catch(() => {});
             };
             onCancel(cleanup);
 

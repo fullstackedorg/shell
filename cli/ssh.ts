@@ -25,7 +25,6 @@ export const ssh: Command = {
         const ssh = new NodeSSH();
 
         try {
-
             if (!username) {
                 username = await shell.askQuestion(`Username for '${host}': `);
             }

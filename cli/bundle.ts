@@ -22,7 +22,11 @@ export function formatMessage(msg: any): string {
 }
 
 function resolvePackage(packageName: string, startDir: string): string {
-    if (packageName.startsWith("./") || packageName.startsWith("../") || path.isAbsolute(packageName)) {
+    if (
+        packageName.startsWith("./") ||
+        packageName.startsWith("../") ||
+        path.isAbsolute(packageName)
+    ) {
         const candidatePath = path.resolve(startDir, packageName);
         if (fs.existsSync(candidatePath)) {
             if (fs.statSync(candidatePath).isFile()) {
@@ -31,10 +35,15 @@ function resolvePackage(packageName: string, startDir: string): string {
             const pkgJsonPath = path.join(candidatePath, "package.json");
             if (fs.existsSync(pkgJsonPath)) {
                 try {
-                    const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, "utf8"));
+                    const pkg = JSON.parse(
+                        fs.readFileSync(pkgJsonPath, "utf8")
+                    );
                     if (pkg.main) {
                         const mainPath = path.join(candidatePath, pkg.main);
-                        if (fs.existsSync(mainPath) && fs.statSync(mainPath).isFile()) {
+                        if (
+                            fs.existsSync(mainPath) &&
+                            fs.statSync(mainPath).isFile()
+                        ) {
                             return mainPath;
                         }
                         for (const ext of [".js", ".ts", ".mjs", ".cjs"]) {
@@ -55,15 +64,24 @@ function resolvePackage(packageName: string, startDir: string): string {
     } else {
         let currentDir = startDir;
         while (true) {
-            const candidatePath = path.join(currentDir, "node_modules", packageName);
+            const candidatePath = path.join(
+                currentDir,
+                "node_modules",
+                packageName
+            );
             if (fs.existsSync(candidatePath)) {
                 const pkgJsonPath = path.join(candidatePath, "package.json");
                 if (fs.existsSync(pkgJsonPath)) {
                     try {
-                        const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, "utf8"));
+                        const pkg = JSON.parse(
+                            fs.readFileSync(pkgJsonPath, "utf8")
+                        );
                         if (pkg.main) {
                             const mainPath = path.join(candidatePath, pkg.main);
-                            if (fs.existsSync(mainPath) && fs.statSync(mainPath).isFile()) {
+                            if (
+                                fs.existsSync(mainPath) &&
+                                fs.statSync(mainPath).isFile()
+                            ) {
                                 return mainPath;
                             }
                             for (const ext of [".js", ".ts", ".mjs", ".cjs"]) {
@@ -71,9 +89,20 @@ function resolvePackage(packageName: string, startDir: string): string {
                                     return mainPath + ext;
                                 }
                             }
-                            if (fs.existsSync(mainPath) && fs.statSync(mainPath).isDirectory()) {
-                                for (const ext of [".js", ".ts", ".mjs", ".cjs"]) {
-                                    const indexPath = path.join(mainPath, "index" + ext);
+                            if (
+                                fs.existsSync(mainPath) &&
+                                fs.statSync(mainPath).isDirectory()
+                            ) {
+                                for (const ext of [
+                                    ".js",
+                                    ".ts",
+                                    ".mjs",
+                                    ".cjs"
+                                ]) {
+                                    const indexPath = path.join(
+                                        mainPath,
+                                        "index" + ext
+                                    );
                                     if (fs.existsSync(indexPath)) {
                                         return indexPath;
                                     }
@@ -122,14 +151,18 @@ export const bundle: Command = {
                 }
                 const outputFiles = res.OutputFiles || [];
                 if (outputFiles.length === 0) {
-                    shell.writeln(`Error: bundling plugin ${pluginName} produced no output files.`);
+                    shell.writeln(
+                        `Error: bundling plugin ${pluginName} produced no output files.`
+                    );
                     return 1;
                 }
                 const modulePath = `./${outputFiles[0]}`;
                 const pluginModule = (await import(modulePath)).default;
                 buildPlugin = await plugin.register("build", pluginModule);
             } catch (e: any) {
-                shell.writeln(`Error loading plugin ${pluginName}: ${e.message}`);
+                shell.writeln(
+                    `Error loading plugin ${pluginName}: ${e.message}`
+                );
                 return 1;
             }
         }

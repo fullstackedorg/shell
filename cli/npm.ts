@@ -49,13 +49,24 @@ export const npm: Command = {
             }
 
             const dashDashIndex = args.indexOf("--");
-            const forwardedArgs = dashDashIndex !== -1 ? args.slice(dashDashIndex + 1) : [];
-            const extraArgsStr = forwardedArgs.length > 0 ? " " + forwardedArgs.map(arg => {
-                if (arg.includes(" ") && !arg.startsWith('"') && !arg.startsWith("'")) {
-                    return `"${arg.replace(/"/g, '\\"')}"`;
-                }
-                return arg;
-            }).join(" ") : "";
+            const forwardedArgs =
+                dashDashIndex !== -1 ? args.slice(dashDashIndex + 1) : [];
+            const extraArgsStr =
+                forwardedArgs.length > 0
+                    ? " " +
+                      forwardedArgs
+                          .map((arg) => {
+                              if (
+                                  arg.includes(" ") &&
+                                  !arg.startsWith('"') &&
+                                  !arg.startsWith("'")
+                              ) {
+                                  return `"${arg.replace(/"/g, '\\"')}"`;
+                              }
+                              return arg;
+                          })
+                          .join(" ")
+                    : "";
 
             const runScript = async (name: string): Promise<number> => {
                 const preName = `pre${name}`;
@@ -74,7 +85,9 @@ export const npm: Command = {
                 }
 
                 if (scripts[name]) {
-                    const scriptCmd = scripts[name] + (name === scriptName ? extraArgsStr : "");
+                    const scriptCmd =
+                        scripts[name] +
+                        (name === scriptName ? extraArgsStr : "");
                     shell.writeln(`> ${name}`);
                     shell.writeln(`> ${scriptCmd}`);
                     return await shell.executeLine(scriptCmd, undefined, env);

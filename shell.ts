@@ -700,13 +700,18 @@ export class Shell {
         }
     }
 
-    async executeCommand(cmdStr: string, opts?: { cwd?: string; env?: Record<string, string> }) {
+    async executeCommand(
+        cmdStr: string,
+        opts?: { cwd?: string; env?: Record<string, string> }
+    ) {
         const originalCwd = process.cwd();
         if (opts?.cwd) {
             try {
                 process.chdir(opts.cwd);
             } catch (e: any) {
-                this.writeln(`Error: could not change directory to ${opts.cwd}: ${e.message}`);
+                this.writeln(
+                    `Error: could not change directory to ${opts.cwd}: ${e.message}`
+                );
                 this.prompt();
                 return;
             }
@@ -798,7 +803,11 @@ export class Shell {
         }
     }
 
-    async executeLine(cmdStr: string, signal?: AbortSignal, env?: Record<string, string>): Promise<number> {
+    async executeLine(
+        cmdStr: string,
+        signal?: AbortSignal,
+        env?: Record<string, string>
+    ): Promise<number> {
         // Split by && but respect quotes if possible?
         // For now simple split as requested, ensuring we don't break string literals if we can avoid it.
         // But a simple split("&&") is the requested task.
@@ -850,7 +859,11 @@ export class Shell {
                     const expandedCommands = this.splitCommands(expandedCmd);
 
                     if (expandedCommands.length > 1) {
-                        lastExitCode = await this.executeLine(expandedCmd, signal, cmdEnv);
+                        lastExitCode = await this.executeLine(
+                            expandedCmd,
+                            signal,
+                            cmdEnv
+                        );
                         aliased = true;
                     } else {
                         // Replace args for the current iteration
@@ -920,7 +933,9 @@ export class Shell {
 
         return new Promise((resolve, reject) => {
             if (!hidden && defaultValue) {
-                this.terminal.write(`${prompt}\x1b[90m ${defaultValue}${"\b".repeat(defaultValue.length + 1)}`);
+                this.terminal.write(
+                    `${prompt}\x1b[90m ${defaultValue}${"\b".repeat(defaultValue.length + 1)}`
+                );
             } else {
                 this.terminal.write(prompt);
             }
@@ -933,7 +948,9 @@ export class Shell {
                         this.inputHandler = null;
                         if (input.length === 0 && defaultValue) {
                             // Reset color, clear to the right, and print default value
-                            this.terminal.write(`\x1b[0m\x1b[K${defaultValue}\r\n`);
+                            this.terminal.write(
+                                `\x1b[0m\x1b[K${defaultValue}\r\n`
+                            );
                             resolve(defaultValue);
                         } else {
                             this.terminal.write("\r\n");
@@ -960,7 +977,9 @@ export class Shell {
 
                             // If input becomes empty and we have a defaultValue, show placeholder
                             if (!hidden && input.length === 0 && defaultValue) {
-                                this.terminal.write(`\x1b[90m ${defaultValue}${"\b".repeat(defaultValue.length + 1)}`);
+                                this.terminal.write(
+                                    `\x1b[90m ${defaultValue}${"\b".repeat(defaultValue.length + 1)}`
+                                );
                             }
                         }
                         break;
@@ -1016,7 +1035,9 @@ export class Shell {
                       ? `Password for '${resource}': `
                       : "Password: ";
 
-            const password = await this.askQuestion(passwordPrompt, { hidden: true });
+            const password = await this.askQuestion(passwordPrompt, {
+                hidden: true
+            });
             return { username, password };
         } catch (e) {
             return null;

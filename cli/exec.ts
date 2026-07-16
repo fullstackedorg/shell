@@ -13,13 +13,17 @@ export const exec: Command = {
         onCancel: (handler: () => void) => void,
         env?: Record<string, string>
     ) => {
-        // remove flags
-        args = args.filter((a) => !a.startsWith("--"));
-        const file = args.at(0);
-        if (!file) {
+        // Parse flags and identify the script file to execute.
+        // Flags before the file name are for the exec command itself.
+        // Flags/arguments after the file name are passed to the executed script.
+        const fileIndex = args.findIndex((a) => !a.startsWith("--"));
+        if (fileIndex === -1) {
             shell.writeln("Error: no file specified.");
             return 1;
         }
+        const file = args[fileIndex];
+        const execFlags = args.slice(0, fileIndex);
+        const debug = execFlags.includes("--debug");
         const filePath = path.join(process.cwd(), file);
         let targetFilePath = filePath;
         let isTempFile = false;
@@ -80,7 +84,7 @@ export const exec: Command = {
         if (result.Errors?.length > 0) {
             result.Errors.forEach((e) => shell.writeln(formatMessage(e)));
             if (isTempFile && tempFilePath) {
-                await fs.promises.rm(tempFilePath).catch(() => {});
+                await fs.promises.rm(tempFilePath).catch(() => { });
             }
             return 1;
         } else {
@@ -88,7 +92,7 @@ export const exec: Command = {
             if (!outputFile) {
                 shell.writeln("Error: no output file generated.");
                 if (isTempFile && tempFilePath) {
-                    await fs.promises.rm(tempFilePath).catch(() => {});
+                    await fs.promises.rm(tempFilePath).catch(() => { });
                 }
                 return 1;
             }
@@ -97,11 +101,11 @@ export const exec: Command = {
                 try {
                     const resolved = require.resolve(`./${outputFile}`);
                     delete require.cache[resolved];
-                } catch {}
+                } catch { }
                 if (isTempFile && tempFilePath) {
-                    fs.promises.rm(tempFilePath).catch(() => {});
+                    fs.promises.rm(tempFilePath).catch(() => { });
                 }
-                return fs.promises.rm(outputFile).catch(() => {});
+                return fs.promises.rm(outputFile).catch(() => { });
             };
             onCancel(cleanup);
 
@@ -109,13 +113,14 @@ export const exec: Command = {
             urlParams.set("t", String(Date.now()));
             urlParams.append("argv", "exec");
             urlParams.append("argv", file);
-            for (const arg of args.slice(1)) {
+            for (const arg of args.slice(fileIndex + 1)) {
                 urlParams.append("argv", arg);
             }
 
-            const modulePath = `./${outputFile}?${urlParams.toString()}`;
+            const modulePath = path.join(process.cwd(), `${outputFile}?${urlParams.toString()}`);
+            const moduleImportPath = `./${modulePath}`
             try {
-                await import(modulePath);
+                await import(moduleImportPath);
             } catch (e: any) {
                 shell.writeln(e.stack || e.message || String(e));
                 return 1;

@@ -18,6 +18,7 @@ export const curl: Command = {
         let method = "GET";
         const headers: Record<string, string> = {};
         let data: string | undefined = undefined;
+        let followLocation = false;
 
         for (let i = 0; i < args.length; i++) {
             const arg = args[i];
@@ -66,6 +67,8 @@ export const curl: Command = {
                 if (method === "GET") {
                     method = "POST";
                 }
+            } else if (arg === "-L" || arg === "--location") {
+                followLocation = true;
             } else if (arg.startsWith("-")) {
                 shell.writeln(`curl: option ${arg} is not supported`);
                 return 1;
@@ -88,6 +91,9 @@ export const curl: Command = {
                 "  -H, --header <header>  Pass custom header(s) to server"
             );
             shell.writeln("  -d, --data <data>      HTTP POST data");
+            shell.writeln(
+                "  -L, --location         Follow redirects"
+            );
             return 1;
         }
 
@@ -117,7 +123,7 @@ export const curl: Command = {
             const fetchOpts: RequestInit = {
                 method,
                 signal: controller.signal,
-                redirect: "follow"
+                redirect: followLocation ? "follow" : "manual"
             };
 
             if (data !== undefined) {

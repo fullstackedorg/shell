@@ -39,9 +39,24 @@ export const exec: Command = {
                     return 1;
                 }
 
-                const host = parsedUrl.host;
+                shell.writeln(`Fetching ${file}...`);
+                let response: Response;
+                try {
+                    response = await fetch(file, { redirect: "follow" });
+                    if (!response.ok) {
+                        shell.writeln(
+                            `Error: failed to fetch: ${response.status} ${response.statusText}`
+                        );
+                        return 1;
+                    }
+                } catch (e: any) {
+                    shell.writeln(`Error fetching file: ${e.message}`);
+                    return 1;
+                }
+
+                const finalUrl = response.url;
                 const answer = await shell.askQuestion(
-                    `Are you sure you want to execute from ${host} ? (y/N) `,
+                    `Are you sure you want to run? (url: ${finalUrl}) (y/N) `,
                     { defaultValue: "y" }
                 );
 
@@ -50,18 +65,10 @@ export const exec: Command = {
                     return 1;
                 }
 
-                shell.writeln(`Fetching ${file}...`);
                 try {
-                    const response = await fetch(file);
-                    if (!response.ok) {
-                        shell.writeln(
-                            `Error: failed to fetch: ${response.status} ${response.statusText}`
-                        );
-                        return 1;
-                    }
                     const codeText = await response.text();
 
-                    const ext = path.extname(parsedUrl.pathname) || ".ts";
+                    const ext = path.extname(new URL(finalUrl).pathname) || ".ts";
                     tempFilePath = path.join(
                         process.cwd(),
                         `.tmp-exec-${Date.now()}${ext}`
@@ -70,7 +77,7 @@ export const exec: Command = {
                     targetFilePath = tempFilePath;
                     isTempFile = true;
                 } catch (e: any) {
-                    shell.writeln(`Error fetching/saving file: ${e.message}`);
+                    shell.writeln(`Error saving file: ${e.message}`);
                     return 1;
                 }
             } else {

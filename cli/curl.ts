@@ -91,9 +91,7 @@ export const curl: Command = {
                 "  -H, --header <header>  Pass custom header(s) to server"
             );
             shell.writeln("  -d, --data <data>      HTTP POST data");
-            shell.writeln(
-                "  -L, --location         Follow redirects"
-            );
+            shell.writeln("  -L, --location         Follow redirects");
             return 1;
         }
 

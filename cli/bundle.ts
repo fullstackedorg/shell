@@ -5,6 +5,12 @@ import plugin from "fullstacked/plugin";
 import { parseArgs, getPlugin } from "./utils";
 import fs from "fs";
 import path from "path";
+import pluginTailwindcss from "@fullstacked/tailwindcss";
+
+// TO REMOVE AFTER 1734
+// 2026-07-17
+await plugin.register("build", pluginTailwindcss);
+// END
 
 export function formatMessage(msg: any): string {
     if (typeof msg === "string") return msg.replace(/\n/g, "\r\n");
@@ -156,8 +162,12 @@ export const bundle: Command = {
                     );
                     return 1;
                 }
-                const modulePath = `./${outputFiles[0]}`;
-                const pluginModule = (await import(modulePath)).default;
+                const modulePath = path.join(
+                    process.cwd(),
+                    `${outputFiles[0]}`
+                );
+                const moduleImportPath = `./${modulePath}`;
+                const pluginModule = (await import(moduleImportPath)).default;
                 buildPlugin = await plugin.register("build", pluginModule);
             } catch (e: any) {
                 shell.writeln(

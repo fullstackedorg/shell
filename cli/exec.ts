@@ -68,7 +68,8 @@ export const exec: Command = {
                 try {
                     const codeText = await response.text();
 
-                    const ext = path.extname(new URL(finalUrl).pathname) || ".ts";
+                    const ext =
+                        path.extname(new URL(finalUrl).pathname) || ".ts";
                     tempFilePath = path.join(
                         process.cwd(),
                         `.tmp-exec-${Date.now()}${ext}`
@@ -91,7 +92,7 @@ export const exec: Command = {
         if (result.Errors?.length > 0) {
             result.Errors.forEach((e) => shell.writeln(formatMessage(e)));
             if (isTempFile && tempFilePath) {
-                await fs.promises.rm(tempFilePath).catch(() => { });
+                await fs.promises.rm(tempFilePath).catch(() => {});
             }
             return 1;
         } else {
@@ -99,7 +100,7 @@ export const exec: Command = {
             if (!outputFile) {
                 shell.writeln("Error: no output file generated.");
                 if (isTempFile && tempFilePath) {
-                    await fs.promises.rm(tempFilePath).catch(() => { });
+                    await fs.promises.rm(tempFilePath).catch(() => {});
                 }
                 return 1;
             }
@@ -108,11 +109,11 @@ export const exec: Command = {
                 try {
                     const resolved = require.resolve(`./${outputFile}`);
                     delete require.cache[resolved];
-                } catch { }
+                } catch {}
                 if (isTempFile && tempFilePath) {
-                    fs.promises.rm(tempFilePath).catch(() => { });
+                    fs.promises.rm(tempFilePath).catch(() => {});
                 }
-                return fs.promises.rm(outputFile).catch(() => { });
+                return fs.promises.rm(outputFile).catch(() => {});
             };
             onCancel(cleanup);
 
@@ -124,8 +125,11 @@ export const exec: Command = {
                 urlParams.append("argv", arg);
             }
 
-            const modulePath = path.join(process.cwd(), `${outputFile}?${urlParams.toString()}`);
-            const moduleImportPath = `./${modulePath}`
+            const modulePath = path.join(
+                process.cwd(),
+                `${outputFile}?${urlParams.toString()}`
+            );
+            const moduleImportPath = `./${modulePath}`;
             try {
                 await import(moduleImportPath);
             } catch (e: any) {

@@ -224,13 +224,14 @@ export function setupUtilityButtons(
 
     // Row 2 & 3: Operation Buttons
     const pasteBtn = createButton("PASTE", () => {
-        ((globalThis as any).paste || navigator.clipboard.readText)().then(
-            (text: string) => {
-                if (text) {
-                    for (const char of text) handleInput(char);
-                }
+        (
+            globalThis.fullstacked?.clipboard?.paste ||
+            navigator.clipboard.readText
+        )().then((text: string) => {
+            if (text) {
+                for (const char of text) handleInput(char);
             }
-        );
+        });
     });
 
     const tabBtn = createButton("TAB", () => handleInput("\t"));
@@ -247,8 +248,8 @@ export function setupUtilityButtons(
     const copyBtn = createButton("COPY", () => {
         const text = terminal.getSelection();
         if (text) {
-            if ((globalThis as any).copy) {
-                (globalThis as any).copy(text);
+            if (globalThis.fullstacked?.clipboard?.copy) {
+                globalThis.fullstacked?.clipboard?.copy(text);
             } else {
                 copyText(text);
             }

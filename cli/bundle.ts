@@ -5,12 +5,6 @@ import plugin from "fullstacked/plugin";
 import { parseArgs, getPlugin } from "./utils";
 import fs from "fs";
 import path from "path";
-import pluginTailwindcss from "@fullstacked/tailwindcss";
-
-// TO REMOVE AFTER 1734
-// 2026-07-17
-await plugin.register("build", pluginTailwindcss);
-// END
 
 export function formatMessage(msg: any): string {
     if (typeof msg === "string") return msg.replace(/\n/g, "\r\n");

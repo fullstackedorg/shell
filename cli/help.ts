@@ -10,9 +10,13 @@ export const help: Command = {
         onCancel: (handler: () => void) => void
     ) => {
         shell.write("\n");
-        shell.writeln("This is the FullStacked shell project. Run FullStacked projects from here.");
+        shell.writeln(
+            "This is the FullStacked shell project. Run FullStacked projects from here."
+        );
         shell.write("\n");
-        shell.writeln("FullStacked is a runtime that runs both NodeJS and Browser APIs seamlessly.");
+        shell.writeln(
+            "FullStacked is a runtime that runs both NodeJS and Browser APIs seamlessly."
+        );
         shell.write("\n");
         shell.writeln("Learn more at https://fullstacked.org.");
         shell.write("\n");

@@ -93,8 +93,7 @@ async function runFile(
             try {
                 const codeText = await response.text();
 
-                const ext =
-                    path.extname(new URL(finalUrl).pathname) || ".ts";
+                const ext = path.extname(new URL(finalUrl).pathname) || ".ts";
                 tempFilePath = path.join(
                     process.cwd(),
                     `.tmp-exec-${Date.now()}${ext}`
@@ -206,7 +205,12 @@ async function runDirectory(
     const filteredArgs: string[] = [];
     for (let i = 0; i < args.length; i++) {
         const arg = args[i];
-        if (arg === "-p" || arg === "--plugin" || arg === "-e" || arg === "--env") {
+        if (
+            arg === "-p" ||
+            arg === "--plugin" ||
+            arg === "-e" ||
+            arg === "--env"
+        ) {
             if (i + 1 < args.length && !args[i + 1].startsWith("-")) {
                 i++; // skip value
             }
@@ -222,7 +226,8 @@ async function runDirectory(
         }
     }
 
-    const bundleExitCode = (await bundle.execute(filteredArgs, shell, onCancel, parsedEnv)) || 0;
+    const bundleExitCode =
+        (await bundle.execute(filteredArgs, shell, onCancel, parsedEnv)) || 0;
     if (bundleExitCode !== 0) {
         buildPlugins.forEach((bp) => bp.unregister());
         return bundleExitCode;
@@ -234,7 +239,8 @@ async function runDirectory(
         return 0;
     }
 
-    const runExitCode = (await run.execute(filteredArgs, shell, onCancel, parsedEnv)) || 0;
+    const runExitCode =
+        (await run.execute(filteredArgs, shell, onCancel, parsedEnv)) || 0;
     buildPlugins.forEach((bp) => bp.unregister());
     return runExitCode;
 }

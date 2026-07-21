@@ -1,7 +1,12 @@
 import bundler from "fullstacked/bundle";
 import { Command } from "./types";
 import { Shell } from "../shell";
-import { parseArgs, getPlugin, formatMessage, loadAndRegisterPlugin } from "./utils";
+import {
+    parseArgs,
+    getPlugin,
+    formatMessage,
+    loadAndRegisterPlugin
+} from "./utils";
 
 export const bundle: Command = {
     name: "bundle",

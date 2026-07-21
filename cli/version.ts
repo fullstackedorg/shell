@@ -1,6 +1,5 @@
 import { Command } from "./types";
 import { Shell } from "../shell";
-import fs from "fs";
 
 export const version: Command = {
     name: "version",

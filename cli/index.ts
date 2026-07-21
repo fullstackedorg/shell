@@ -24,6 +24,7 @@ import { echo } from "./echo";
 import { sleep } from "./sleep";
 import { exit } from "./exit";
 import { fullstacked } from "./fullstacked";
+import { help } from "./help";
 
 export const commands: Record<string, Command> = {
     ls,
@@ -50,9 +51,10 @@ export const commands: Record<string, Command> = {
     echo,
     sleep,
     exit,
-    fullstacked
+    fullstacked,
+    help
 };
 
 export const aliases: Record<string, string> = {
-    node: "exec"
+    node: "fullstacked -f"
 };

@@ -23,6 +23,7 @@ import { curl } from "./curl";
 import { echo } from "./echo";
 import { sleep } from "./sleep";
 import { exit } from "./exit";
+import { fullstacked } from "./fullstacked";
 
 export const commands: Record<string, Command> = {
     ls,
@@ -48,10 +49,10 @@ export const commands: Record<string, Command> = {
     curl,
     echo,
     sleep,
-    exit
+    exit,
+    fullstacked
 };
 
 export const aliases: Record<string, string> = {
-    node: "exec",
-    fullstacked: "bundle && run"
+    node: "exec"
 };

@@ -223,15 +223,19 @@ export function setupUtilityButtons(
     );
 
     // Row 2 & 3: Operation Buttons
-    const pasteBtn = createButton("PASTE", () => {
-        (
+    const pasteBtn = createButton("PASTE", async () => {
+        const pasteResponse = (
             globalThis.fullstacked?.clipboard?.paste ||
             navigator.clipboard.readText
-        )().then((text: string) => {
-            if (text) {
-                for (const char of text) handleInput(char);
-            }
-        });
+        )()
+
+        const text = pasteResponse instanceof Promise
+            ? await pasteResponse
+            : pasteResponse;
+
+        if (text) {
+            for (const char of text) handleInput(char);
+        }
     });
 
     const tabBtn = createButton("TAB", () => handleInput("\t"));

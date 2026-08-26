@@ -21,7 +21,13 @@ main.style.cssText = cssText;
 
 document.body.append(main);
 
-const terminal = new Terminal({ cursorBlink: true, convertEol: true });
+const terminal = new Terminal({
+    cursorBlink: true,
+    convertEol: true,
+    fontFamily: "Menlo, Monaco, 'Courier New', monospace",
+    fontSize: 14,
+    lineHeight: 1.2
+});
 const fitAddon = new FitAddon();
 terminal.loadAddon(fitAddon);
 terminal.open(main);

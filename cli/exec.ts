@@ -16,7 +16,7 @@ export const exec: Command = {
     ) => {
         const { positionals } = parseArgs(args);
 
-        if (positionals.length === 1) {
+        if (positionals.length >= 1) {
             const target = positionals[0];
             let isKnownFile = false;
             try {
@@ -26,7 +26,11 @@ export const exec: Command = {
                     fs.statSync(resolvedTarget).isFile();
             } catch {}
 
-            if (!isKnownFile && target.includes(".")) {
+            const isUrl =
+                /^https?:\/\//i.test(target) ||
+                (!isKnownFile && target.includes("."));
+
+            if (isUrl) {
                 let url = target;
                 if (!/^https?:\/\//i.test(url)) {
                     url = "https://" + url;
@@ -42,9 +46,11 @@ export const exec: Command = {
                 let approved = false;
                 try {
                     const answer = await shell.askQuestion(
-                        `Download and execute from ${url}? (y/n) `
+                        `Download and execute from ${url}? (Y/n) `,
+                        { defaultValue: "y" }
                     );
-                    approved = /^(y|yes)$/i.test(answer.trim());
+                    approved =
+                        !answer.trim() || /^(y|yes)$/i.test(answer.trim());
                 } catch (e: any) {
                     if (e.message === "CANCELED") {
                         return 1;
@@ -98,7 +104,12 @@ export const exec: Command = {
                     filename = path.basename(parsedUrl.pathname);
                 } catch {}
 
-                if (!filename || filename === "/") {
+                if (
+                    !filename ||
+                    filename === "/" ||
+                    filename === "." ||
+                    filename === ".."
+                ) {
                     filename = "script.ts";
                 }
                 if (!path.extname(filename)) {
@@ -121,12 +132,16 @@ export const exec: Command = {
                     execArgs.push(targetPath);
                 }
 
-                return fullstacked.execute(
-                    ["-f", ...execArgs],
-                    shell,
-                    onCancel,
-                    env
-                );
+                try {
+                    return await fullstacked.execute(
+                        ["-f", ...execArgs],
+                        shell,
+                        onCancel,
+                        env
+                    );
+                } finally {
+                    await fs.promises.rm(targetPath).catch(() => {});
+                }
             }
         }
 

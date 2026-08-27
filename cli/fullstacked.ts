@@ -1,6 +1,5 @@
 import { Command } from "./types";
 import { Shell } from "../shell";
-import fullstackedLib from "fullstacked";
 
 export const fullstacked: Command = {
     name: "fullstacked",
@@ -11,6 +10,8 @@ export const fullstacked: Command = {
         onCancel: (handler: () => void) => void,
         env?: Record<string, string>
     ) => {
+        const fullstackedMod = await import("fullstacked");
+        const fullstackedLib = fullstackedMod.default || fullstackedMod;
         onCancel(() => {
             for (const rl of fullstackedLib.getActiveInterfaces()) {
                 rl.close();

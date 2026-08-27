@@ -11,8 +11,13 @@ export const fullstacked: Command = {
         onCancel: (handler: () => void) => void,
         env?: Record<string, string>
     ) => {
+        onCancel(() => {
+            for (const rl of fullstackedLib.getActiveInterfaces()) {
+                rl.close();
+            }
+        });
         const code = await fullstackedLib.execute(["fullstacked", ...args], {
-            stdio: [undefined, shell, shell]
+            stdio: [shell, shell, shell]
         });
         return typeof code === "number" ? code : 0;
     }

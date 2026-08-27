@@ -3,10 +3,6 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { Shell } from "./shell";
 
-declare global {
-    var shell: Shell;
-}
-
 document.title = "FullStacked";
 
 const main = document.createElement("main");
@@ -36,7 +32,10 @@ fitAddon.fit();
 window.addEventListener("resize", fitAddon.fit.bind(fitAddon));
 
 const shell = new Shell(terminal);
-globalThis.shell = shell;
+
+process.stdin = shell as any;
+process.stdout = shell as any;
+process.stderr = shell as any;
 
 const v = (process.versions as any).fullstacked;
 terminal.writeln(

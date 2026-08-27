@@ -227,11 +227,12 @@ export function setupUtilityButtons(
         const pasteResponse = (
             globalThis.fullstacked?.clipboard?.paste ||
             navigator.clipboard.readText
-        )()
+        )();
 
-        const text = pasteResponse instanceof Promise
-            ? await pasteResponse
-            : pasteResponse;
+        const text =
+            pasteResponse instanceof Promise
+                ? await pasteResponse
+                : pasteResponse;
 
         if (text) {
             for (const char of text) handleInput(char);

@@ -1,4 +1,6 @@
 import { Terminal } from "@xterm/xterm";
+import { EventEmitter } from "events";
+import { Buffer } from "buffer";
 import { commands, aliases } from "./cli";
 import { getConfig } from "./cli/config";
 import { WebLinksAddon } from "@xterm/addon-web-links";
@@ -10,6 +12,7 @@ import { splitShellArgs } from "./utils/args";
 import { copyText } from "./utils/clipboard";
 import fs from "fs";
 import path from "path";
+import fullstackedLib from "fullstacked"
 
 const HISTORY_FILE = path.join(path.sep, "user_data", ".history");
 const GIT_CREDENTIALS_FILE = path.join(
@@ -19,13 +22,25 @@ const GIT_CREDENTIALS_FILE = path.join(
 );
 
 const td = new TextDecoder();
+const KEYPRESS_DECODER = Symbol.for("KEYPRESS_DECODER");
 
-export class Shell {
+export class Shell extends EventEmitter {
     terminal: Terminal;
     command: string = "";
     cursorPos: number = 0;
     history: string[] = [];
     historyIndex: number = 0;
+    isTTY = true;
+    isRaw = false;
+    paused = false;
+
+    get columns() {
+        return this.terminal.cols;
+    }
+
+    get rows() {
+        return this.terminal.rows;
+    }
     private inputHandler: ((e: string) => void) | null = null;
     private activeExecutions = new Set<Promise<any>>();
     private currentExecutionPromise: Promise<any> | null = null;
@@ -47,7 +62,11 @@ export class Shell {
     private autoScrollTimer: any = null;
 
     constructor(terminal: Terminal) {
+        super();
         this.terminal = terminal;
+        this.terminal.onResize(() => {
+            this.emit("resize");
+        });
         this.terminal.loadAddon(new WebLinksAddon());
         this.loadHistory();
         this.runInitScript();
@@ -101,6 +120,48 @@ export class Shell {
         });
     }
 
+    private getCellFromCoords(
+        x: number,
+        y: number
+    ): { col: number; row: number } | null {
+        const core = (this.terminal as any)._core;
+        if (
+            !core ||
+            !core._renderService ||
+            !core._renderService.dimensions ||
+            !core._renderService.dimensions.css
+        ) {
+            return null;
+        }
+
+        const cellWidth = core._renderService.dimensions.css.cell.width;
+        const cellHeight = core._renderService.dimensions.css.cell.height;
+        const rect = this.terminal.element?.getBoundingClientRect();
+        if (!rect || cellWidth === 0 || cellHeight === 0) return null;
+
+        const relX = x - rect.left;
+        const relY = y - rect.top;
+
+        const col = Math.max(
+            0,
+            Math.min(
+                this.terminal.cols - 1,
+                Math.floor(relX / cellWidth)
+            )
+        );
+        const bufferRow = Math.floor(relY / cellHeight);
+        const viewportY = this.terminal.buffer.active.viewportY;
+        const row = Math.max(
+            0,
+            Math.min(
+                this.terminal.buffer.active.length - 1,
+                viewportY + bufferRow
+            )
+        );
+
+        return { col, row };
+    }
+
     private setupTouchToolbar() {
         setupUtilityButtons(
             (char: string) => this.handleInput(char),
@@ -108,46 +169,30 @@ export class Shell {
         );
     }
 
-    private getCellFromCoords(
-        clientX: number,
-        clientY: number
-    ): { col: number; row: number } | null {
-        if (!this.terminal.element) return null;
-        const screenEl = this.terminal.element.querySelector(".xterm-screen");
-        if (!screenEl) return null;
-
-        const rect = screenEl.getBoundingClientRect();
-        const relativeX = clientX - rect.left;
-        const relativeY = clientY - rect.top;
-
-        const charWidth = rect.width / this.terminal.cols;
-        const charHeight = rect.height / this.terminal.rows;
-
-        let col = Math.floor(relativeX / charWidth);
-        let row = Math.floor(relativeY / charHeight);
-
-        col = Math.max(0, Math.min(col, this.terminal.cols - 1));
-        row = Math.max(0, Math.min(row, this.terminal.rows - 1));
-
-        const bufferRow = row + this.terminal.buffer.active.viewportY;
-        return { col, row: bufferRow };
+    private isWordChar(char: string): boolean {
+        return /[a-zA-Z0-9_\-\.\/]/.test(char);
     }
 
     private getWordRangeAt(
         text: string,
-        col: number
+        index: number
     ): { start: number; end: number } {
-        if (col < 0 || col >= text.length) return { start: col, end: col };
+        if (
+            index < 0 ||
+            index >= text.length ||
+            !this.isWordChar(text[index])
+        ) {
+            return { start: index, end: index };
+        }
 
-        const isWordChar = (char: string) => /^[a-zA-Z0-9_\-./]$/.test(char);
+        let start = index;
+        let end = index;
 
-        let start = col;
-        while (start > 0 && isWordChar(text[start - 1])) {
+        while (start > 0 && this.isWordChar(text[start - 1])) {
             start--;
         }
 
-        let end = col;
-        while (end < text.length - 1 && isWordChar(text[end + 1])) {
+        while (end < text.length - 1 && this.isWordChar(text[end + 1])) {
             end++;
         }
 
@@ -253,19 +298,14 @@ export class Shell {
                 if (!cell) return;
 
                 this.touchStartCell = cell;
-                this.isTouchSelecting = false;
 
-                if (this.touchSelectTimer) {
-                    clearTimeout(this.touchSelectTimer);
-                }
-
+                // Long-press timer (400ms)
                 this.touchSelectTimer = setTimeout(() => {
                     this.isTouchSelecting = true;
-                    if (navigator.vibrate) {
-                        navigator.vibrate(50);
-                    }
+                    if (navigator.vibrate) navigator.vibrate(30);
+
                     this.selectWordAt(cell.col, cell.row);
-                }, 500);
+                }, 400);
             },
             { passive: false }
         );
@@ -273,71 +313,80 @@ export class Shell {
         element.addEventListener(
             "touchmove",
             (e: TouchEvent) => {
-                if (!this.touchStartPos) return;
-
+                if (e.touches.length !== 1) return;
                 const touch = e.touches[0];
                 this.lastTouchPos = { x: touch.clientX, y: touch.clientY };
 
-                const dx = touch.clientX - this.touchStartPos.x;
-                const dy = touch.clientY - this.touchStartPos.y;
-
                 if (!this.isTouchSelecting) {
-                    if (Math.sqrt(dx * dx + dy * dy) > 10) {
-                        if (this.touchSelectTimer) {
-                            clearTimeout(this.touchSelectTimer);
-                            this.touchSelectTimer = null;
+                    // Check if moved beyond threshold to cancel long-press
+                    if (this.touchStartPos) {
+                        const dist = Math.hypot(
+                            touch.clientX - this.touchStartPos.x,
+                            touch.clientY - this.touchStartPos.y
+                        );
+                        if (dist > 10) {
+                            if (this.touchSelectTimer) {
+                                clearTimeout(this.touchSelectTimer);
+                                this.touchSelectTimer = null;
+                            }
                         }
                     }
+                    return;
+                }
+
+                // If in selection mode, prevent scrolling and update selection range
+                e.preventDefault();
+
+                const cell = this.getCellFromCoords(
+                    touch.clientX,
+                    touch.clientY
+                );
+                if (cell) {
+                    this.selectRange(cell);
+                }
+
+                // Auto-scroll near top/bottom edges
+                const rect = element.getBoundingClientRect();
+                const edgeMargin = 40;
+                if (touch.clientY < rect.top + edgeMargin) {
+                    this.startAutoScroll(-1); // scroll up
+                } else if (touch.clientY > rect.bottom - edgeMargin) {
+                    this.startAutoScroll(1); // scroll down
                 } else {
-                    e.preventDefault();
-                    e.stopPropagation();
-
-                    const cell = this.getCellFromCoords(
-                        touch.clientX,
-                        touch.clientY
-                    );
-                    if (cell) {
-                        this.selectRange(cell);
-                    }
-
-                    // Auto-scroll detection
-                    const rect = element.getBoundingClientRect();
-                    const relativeY = touch.clientY - rect.top;
-
-                    if (relativeY < 20) {
-                        this.startAutoScroll(-1);
-                    } else if (relativeY > rect.height - 20) {
-                        this.startAutoScroll(1);
-                    } else {
-                        this.stopAutoScroll();
-                    }
+                    this.stopAutoScroll();
                 }
             },
             { passive: false }
         );
 
-        const endHandler = () => {
+        const endTouch = (e: TouchEvent) => {
             if (this.touchSelectTimer) {
                 clearTimeout(this.touchSelectTimer);
                 this.touchSelectTimer = null;
             }
-
             this.stopAutoScroll();
 
             if (this.isTouchSelecting) {
+                e.preventDefault();
                 this.isTouchSelecting = false;
-            }
+                this.touchSelectionAnchorStart = null;
+                this.touchSelectionAnchorEnd = null;
 
+                const selection = this.terminal.getSelection();
+                if (selection && selection.length > 0) {
+                    copyText(selection);
+                }
+            }
             this.touchStartPos = null;
             this.touchStartCell = null;
             this.lastTouchPos = null;
         };
 
-        element.addEventListener("touchend", endHandler);
-        element.addEventListener("touchcancel", endHandler);
+        element.addEventListener("touchend", endTouch);
+        element.addEventListener("touchcancel", endTouch);
 
-        element.addEventListener("keydown", (e: KeyboardEvent) => {
-            if (e.metaKey && (e.key === "c" || e.key === "C")) {
+        element.addEventListener("contextmenu", (e) => {
+            if (this.terminal.hasSelection()) {
                 const selection = this.terminal.getSelection();
                 if (selection) {
                     e.preventDefault();
@@ -355,12 +404,74 @@ export class Shell {
         this._lastDrawnCursorPos = 0;
     }
 
-    write(data: string | Uint8Array) {
-        this.terminal.write(data);
+    setRawMode(mode: boolean) {
+        this.isRaw = Boolean(mode);
+        if (this.isRaw) {
+            this.paused = false;
+        }
+        return this;
     }
 
-    writeln(data?: string) {
-        if (data) this.terminal.writeln(data);
+    pause() {
+        this.paused = true;
+        this.emit("pause");
+        return this;
+    }
+
+    resume() {
+        this.paused = false;
+        this.emit("resume");
+        return this;
+    }
+
+    ref() {
+        return this;
+    }
+
+    unref() {
+        return this;
+    }
+
+    write(data: any, encodingOrCallback?: any, callback?: any): boolean {
+        let cb = callback;
+        if (typeof encodingOrCallback === "function") {
+            cb = encodingOrCallback;
+        }
+
+        let str: string | Uint8Array;
+        if (typeof data === "string" || data instanceof Uint8Array) {
+            str = data;
+        } else if (Buffer.isBuffer(data)) {
+            str = new TextDecoder().decode(data);
+        } else {
+            str = String(data);
+        }
+
+        this.terminal.write(str, () => {
+            if (cb) cb();
+        });
+        return true;
+    }
+
+    writeln(data?: any, callback?: () => void): boolean {
+        if (data !== undefined) {
+            let str: string;
+            if (typeof data === "string") {
+                str = data;
+            } else if (data instanceof Uint8Array || Buffer.isBuffer(data)) {
+                str = new TextDecoder().decode(data);
+            } else {
+                str = String(data);
+            }
+            this.terminal.writeln(str, () => {
+                if (callback) callback();
+            });
+        } else {
+            this.terminal.writeln("", () => {
+                if (callback) callback();
+            });
+        }
+        return true;
     }
 
     clear() {
@@ -418,6 +529,19 @@ export class Shell {
     }
 
     async handleInput(e: string) {
+        const hasDataListeners =
+            this.listenerCount("data") >
+            ((this as any)[KEYPRESS_DECODER] ? 1 : 0);
+        const hasKeypressListeners = this.listenerCount("keypress") > 0;
+
+        if (
+            !this.paused &&
+            (this.isRaw || hasKeypressListeners || hasDataListeners)
+        ) {
+            this.emit("data", Buffer.from(e));
+            return;
+        }
+
         if (e === "\u0003") {
             this.isExitPrevented = true;
             if (this.exitPreventedTimer) {
@@ -720,6 +844,7 @@ export class Shell {
         const executionPromise = (async () => {
             try {
                 await this.executeLine(cmdStr, undefined, opts?.env);
+                await fullstackedLib.waitForInterfaces();
             } finally {
                 if (opts?.cwd) {
                     try {

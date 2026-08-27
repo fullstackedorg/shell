@@ -14,7 +14,18 @@ export const exec: Command = {
         onCancel: (handler: () => void) => void,
         env?: Record<string, string>
     ) => {
-        const { positionals } = parseArgs(args);
+        let skipPrompt = false;
+        const cleanArgs: string[] = [];
+
+        for (const arg of args) {
+            if (arg === "-y" || arg === "--yes") {
+                skipPrompt = true;
+            } else {
+                cleanArgs.push(arg);
+            }
+        }
+
+        const { positionals } = parseArgs(cleanArgs);
 
         if (positionals.length >= 1) {
             const target = positionals[0];
@@ -44,19 +55,23 @@ export const exec: Command = {
                 });
 
                 let approved = false;
-                try {
-                    const answer = await shell.askQuestion(
-                        `Download and execute from ${url}? (Y/n) `,
-                        { defaultValue: "y" }
-                    );
-                    approved =
-                        !answer.trim() || /^(y|yes)$/i.test(answer.trim());
-                } catch (e: any) {
-                    if (e.message === "CANCELED") {
+                if (skipPrompt) {
+                    approved = true;
+                } else {
+                    try {
+                        const answer = await shell.askQuestion(
+                            `Download and execute from ${url}? (Y/n) `,
+                            { defaultValue: "y" }
+                        );
+                        approved =
+                            !answer.trim() || /^(y|yes)$/i.test(answer.trim());
+                    } catch (e: any) {
+                        if (e.message === "CANCELED") {
+                            return 1;
+                        }
+                        shell.writeln(`exec: ${e.message}`);
                         return 1;
                     }
-                    shell.writeln(`exec: ${e.message}`);
-                    return 1;
                 }
 
                 if (!approved) {
@@ -69,6 +84,12 @@ export const exec: Command = {
 
                 const controller = new AbortController();
                 cancelHandler = () => controller.abort();
+
+                let timedOut = false;
+                const timeout = setTimeout(() => {
+                    timedOut = true;
+                    controller.abort();
+                }, 5000);
 
                 let content: Buffer;
                 try {
@@ -84,6 +105,10 @@ export const exec: Command = {
                     const arrayBuffer = await response.arrayBuffer();
                     content = Buffer.from(arrayBuffer);
                 } catch (e: any) {
+                    if (timedOut) {
+                        shell.writeln("exec: download timed out");
+                        return 1;
+                    }
                     if (isCancelled || e.name === "AbortError") {
                         shell.writeln("\r\nexec: download aborted");
                         return 1;
@@ -91,6 +116,7 @@ export const exec: Command = {
                     shell.writeln(`exec: ${e.message}`);
                     return 1;
                 } finally {
+                    clearTimeout(timeout);
                     cancelHandler = null;
                 }
 
@@ -124,8 +150,8 @@ export const exec: Command = {
                     return 1;
                 }
 
-                const targetIndex = args.indexOf(target);
-                const execArgs = [...args];
+                const targetIndex = cleanArgs.indexOf(target);
+                const execArgs = [...cleanArgs];
                 if (targetIndex !== -1) {
                     execArgs[targetIndex] = targetPath;
                 } else {
@@ -145,7 +171,7 @@ export const exec: Command = {
             }
         }
 
-        return fullstacked.execute(["-f", ...args], shell, onCancel, env);
+        return fullstacked.execute(["-f", ...cleanArgs], shell, onCancel, env);
     }
 };
 

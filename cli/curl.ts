@@ -13,6 +13,27 @@ export const curl: Command = {
         shell: Shell,
         onCancel: (handler: () => void) => void
     ) => {
+        if (
+            args.includes("--help") ||
+            args.includes("-h") ||
+            args[0] === "help"
+        ) {
+            shell.writeln("Usage: curl [options...] <url>");
+            shell.writeln("Options:");
+            shell.writeln(
+                "  -o, --output <file>    Write to file instead of stdout"
+            );
+            shell.writeln(
+                "  -X, --request <method> Specify request command to use"
+            );
+            shell.writeln(
+                "  -H, --header <header>  Pass custom header(s) to server"
+            );
+            shell.writeln("  -d, --data <data>      HTTP POST data");
+            shell.writeln("  -L, --location         Follow redirects");
+            return 0;
+        }
+
         let urlStr = "";
         let outputFile = "";
         let method = "GET";

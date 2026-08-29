@@ -9,8 +9,18 @@ export const sleep: Command = {
         shell: Shell,
         onCancel: (handler: () => void) => void
     ) => {
+        if (
+            args.includes("--help") ||
+            args.includes("-h") ||
+            args[0] === "help"
+        ) {
+            shell.writeln("Usage: sleep <number>[s|m|h|d]");
+            return 0;
+        }
+
         if (args.length === 0) {
             shell.writeln("sleep: missing operand");
+            shell.writeln("Usage: sleep <number>[s|m|h|d]");
             return 1;
         }
 

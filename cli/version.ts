@@ -5,6 +5,14 @@ export const version: Command = {
     name: "version",
     description: "Print FullStacked version information",
     execute: async (args: string[], shell: Shell) => {
+        if (
+            args.includes("--help") ||
+            args.includes("-h") ||
+            args[0] === "help"
+        ) {
+            shell.writeln("Usage: version");
+            return 0;
+        }
         const v = (process.versions as any).fullstacked;
         if (!v) {
             shell.writeln("FullStacked version information not found.");

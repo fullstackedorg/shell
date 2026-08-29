@@ -5,12 +5,16 @@ import fs from "fs";
 
 export const cd: Command = {
     name: "cd",
-
+    description: "Change the working directory",
     execute: async (
         args: string[],
         shell: Shell,
         onCancel: (handler: () => void) => void
     ) => {
+        if (args[0] === "--help" || args[0] === "-h" || args[0] === "help") {
+            shell.writeln("Usage: cd [directory]");
+            return 0;
+        }
         const dest = args[0] || path.sep;
         const target = path.isAbsolute(dest)
             ? dest

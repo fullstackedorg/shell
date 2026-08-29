@@ -109,6 +109,30 @@ function formatTags(tags: any[]): string {
     return tags.map((tag) => yellow(tag.name)).join("\n");
 }
 
+function printGitHelp(shell: Shell) {
+    shell.writeln("usage: git <command> [<args>]\n");
+    shell.writeln(
+        "These are common Git commands used in various situations:\n"
+    );
+    shell.writeln("   init       Initialize a repository");
+    shell.writeln("   clone      Clone a repository into a new directory");
+    shell.writeln("   status     Show the working tree status");
+    shell.writeln("   add        Add file contents to the index");
+    shell.writeln("   restore    Restore working tree files");
+    shell.writeln("   commit     Record changes to the repository");
+    shell.writeln("   reset      Reset current HEAD to the specified state");
+    shell.writeln("   branch     List branches");
+    shell.writeln("   checkout   Switch branches");
+    shell.writeln("   merge      Join development histories together");
+    shell.writeln("   log        Show commit logs");
+    shell.writeln("   tags       List tags");
+    shell.writeln(
+        "   pull       Fetch from and integrate with remote repository"
+    );
+    shell.writeln("   push       Update remote refs");
+    shell.writeln("   config     Set repository configuration options");
+}
+
 export const git: Command = {
     name: "git",
     description: "Run git commands",
@@ -118,6 +142,16 @@ export const git: Command = {
         onCancel: (handler: () => void) => void
     ) => {
         const command = args[0];
+        if (
+            !command ||
+            command === "help" ||
+            command === "--help" ||
+            command === "-h"
+        ) {
+            printGitHelp(shell);
+            return 0;
+        }
+
         const { flags, positionals } = parseArgs(args.slice(1));
         const directory = getDirectory(flags);
 

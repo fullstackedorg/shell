@@ -432,6 +432,14 @@ export const vi: Command = {
     name: "vi",
     description: "Text editor",
     execute: async (args, shell, onCancel) => {
+        if (
+            args.includes("--help") ||
+            args.includes("-h") ||
+            args[0] === "help"
+        ) {
+            shell.writeln("Usage: vi [filename]");
+            return 0;
+        }
         const filePath = args[0] || null;
         return new Promise<void>(async (resolve) => {
             const editor = new Vi(shell, filePath, () => {

@@ -11,9 +11,14 @@ export const mv: Command = {
         shell: Shell,
         onCancel: (handler: () => void) => void
     ) => {
-        if (args.length < 2) {
+        if (
+            args.length < 2 ||
+            args.includes("--help") ||
+            args.includes("-h") ||
+            args[0] === "help"
+        ) {
             shell.writeln("Usage: mv <source> <destination>");
-            return;
+            return 0;
         }
 
         let source = path.resolve(process.cwd(), args[0]);

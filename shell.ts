@@ -12,7 +12,7 @@ import { splitShellArgs } from "./utils/args";
 import { copyText } from "./utils/clipboard";
 import fs from "fs";
 import path from "path";
-import fullstackedLib from "fullstacked"
+import fullstackedLib from "fullstacked";
 
 const HISTORY_FILE = path.join(path.sep, "user_data", ".history");
 const GIT_CREDENTIALS_FILE = path.join(
@@ -144,10 +144,7 @@ export class Shell extends EventEmitter {
 
         const col = Math.max(
             0,
-            Math.min(
-                this.terminal.cols - 1,
-                Math.floor(relX / cellWidth)
-            )
+            Math.min(this.terminal.cols - 1, Math.floor(relX / cellWidth))
         );
         const bufferRow = Math.floor(relY / cellHeight);
         const viewportY = this.terminal.buffer.active.viewportY;

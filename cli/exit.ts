@@ -9,6 +9,14 @@ export const exit: Command = {
         shell: Shell,
         onCancel: (handler: () => void) => void
     ) => {
+        if (
+            args.includes("--help") ||
+            args.includes("-h") ||
+            args[0] === "help"
+        ) {
+            shell.writeln("Usage: exit [delay]");
+            return 0;
+        }
         const delay = args[0] ? parseInt(args[0], 10) : undefined;
         await shell.exit(isNaN(delay) ? undefined : delay);
     }

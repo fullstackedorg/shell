@@ -16,6 +16,14 @@ export const bundle: Command = {
         shell: Shell,
         onCancel: (handler: () => void) => void
     ) => {
+        if (
+            args.includes("--help") ||
+            args.includes("-h") ||
+            args[0] === "help"
+        ) {
+            shell.writeln("Usage: bundle [directory] [--plugin <plugin>]");
+            return 0;
+        }
         const { positionals } = parseArgs(args);
         const pluginName = getPlugin(args);
 

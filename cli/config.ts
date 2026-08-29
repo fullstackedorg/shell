@@ -80,11 +80,21 @@ export const config: Command = {
     name: "config",
     description: "Get or set configuration values",
     execute: async (args, shell) => {
+        if (
+            args.length === 0 ||
+            args.includes("--help") ||
+            args.includes("-h") ||
+            args[0] === "help"
+        ) {
+            shell.writeln("Usage: config <get|set|delete|list> [key] [value]");
+            return 0;
+        }
+
         const { positionals } = parseArgs(args);
 
         if (positionals.length === 0) {
             shell.writeln("Usage: config <get|set|delete|list> [key] [value]");
-            return;
+            return 0;
         }
 
         const [action, key, value] = positionals;

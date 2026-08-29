@@ -5,16 +5,16 @@ import path from "path";
 
 export const cat: Command = {
     name: "cat",
-
+    description: "Concatenate and display files",
     execute: async (
         args: string[],
         shell: Shell,
         onCancel: (handler: () => void) => void
     ) => {
         const file = args[0];
-        if (!file) {
+        if (!file || file === "--help" || file === "-h" || file === "help") {
             shell.writeln("Usage: cat <filename>");
-            return;
+            return 0;
         }
         try {
             const data = await fs.promises.readFile(

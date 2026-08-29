@@ -53,8 +53,16 @@ export function formatProgress(progress: any, width: number = 80): string {
         .join("\n");
 }
 
+function printPackagesHelp(shell: Shell) {
+    shell.writeln("Usage: packages <command> [args]\n");
+    shell.writeln("Commands:");
+    shell.writeln("  install, i    Install packages");
+    shell.writeln("  uninstall     Uninstall packages");
+    shell.writeln("  audit         Run security audit");
+}
+
 export const packages: Command = {
-    name: "npm",
+    name: "packages",
     description: "Manage packages",
     execute: async (
         args: string[],
@@ -62,6 +70,16 @@ export const packages: Command = {
         onCancel: (handler: () => void) => void
     ) => {
         const command = args[0];
+        if (
+            !command ||
+            command === "help" ||
+            command === "--help" ||
+            command === "-h"
+        ) {
+            printPackagesHelp(shell);
+            return 0;
+        }
+
         const { flags, positionals } = parseArgs(args.slice(1));
         const directory = getDirectory(flags);
 

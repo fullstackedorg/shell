@@ -8,12 +8,23 @@ import os from "os";
 
 export const exec: Command = {
     name: "exec",
+    description: "Execute a remote or local script",
     execute: async (
         args: string[],
         shell: Shell,
         onCancel: (handler: () => void) => void,
         env?: Record<string, string>
     ) => {
+        if (
+            args.length === 0 ||
+            args.includes("--help") ||
+            args.includes("-h") ||
+            args[0] === "help"
+        ) {
+            shell.writeln("Usage: exec [-y|--yes] <url|file> [args...]");
+            return 0;
+        }
+
         let skipPrompt = false;
         const cleanArgs: string[] = [];
 
@@ -176,4 +187,3 @@ export const exec: Command = {
 };
 
 export default exec;
-

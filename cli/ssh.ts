@@ -10,6 +10,15 @@ export const ssh: Command = {
         shell: Shell,
         onCancel: (handler: () => void) => void
     ) => {
+        if (
+            args.includes("--help") ||
+            args.includes("-h") ||
+            args[0] === "help"
+        ) {
+            shell.writeln("usage: ssh [user@]host");
+            return 0;
+        }
+
         const target = args.find((arg) => !arg.startsWith("-"));
         if (!target) {
             shell.writeln("usage: ssh [user@]host");

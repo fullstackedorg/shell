@@ -25,8 +25,14 @@ export const rm: Command = {
         const recursive = flags.includes("r") || flags.includes("R");
         const force = flags.includes("f");
 
-        if (otherArgs.length === 0) {
-            shell.writeln("usage: rm [-rf] <file/dir>");
+        if (
+            otherArgs.length === 0 ||
+            args.includes("--help") ||
+            args.includes("-h") ||
+            args[0] === "help"
+        ) {
+            shell.writeln("usage: rm [-rf] <file/dir...>");
+            return 0;
         }
 
         for (const arg of otherArgs) {

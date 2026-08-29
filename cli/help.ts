@@ -30,6 +30,7 @@ export const help: Command = {
         shell.writeln("  fullstacked   Compile and run a FullStacked project");
         shell.writeln("  bundle        Bundle the project");
         shell.writeln("  run           Run the project");
+        shell.writeln("  exec          Execute a remote or local script");
         shell.writeln("  packages      Manage project packages");
         shell.writeln("  npm           Run npm commands");
         shell.writeln("  env           List environment variables");

@@ -7,12 +7,16 @@ import prettyBytes from "pretty-bytes";
 
 export const ls: Command = {
     name: "ls",
-
+    description: "List directory contents",
     execute: async (
         args: string[],
         shell: Shell,
         onCancel: (handler: () => void) => void
     ) => {
+        if (args.includes("--help") || args[0] === "help") {
+            shell.writeln("Usage: ls [-lha] [directory]");
+            return 0;
+        }
         let flags = "";
         const otherArgs: string[] = [];
 

@@ -102,10 +102,7 @@ export const npm: Command = {
                     shell.writeln(`> ${name}`);
                     shell.writeln(`> ${scriptCmd}`);
                     return await shell.executeLine(scriptCmd, undefined, env);
-                } else if (
-                    name !== "start" ||
-                    name.startsWith("pre")
-                ) {
+                } else if (name !== "start" || name.startsWith("pre")) {
                     return 0;
                 }
 

@@ -1,79 +1,20 @@
 import { Command } from "./types";
 import { parseArgs } from "./utils";
-import fs from "fs";
-import path from "path";
-
-const CONFIG_FILE = path.join(path.sep, "user_data", ".config");
-const LOCK_FILE = path.join(path.sep, "user_data", ".config.lock");
-
-async function acquireLock() {
-    const start = Date.now();
-    while (Date.now() - start < 5000) {
-        // 5 second timeout
-        try {
-            await fs.promises.stat(LOCK_FILE);
-        } catch (e) {
-            await fs.promises.mkdir(LOCK_FILE);
-            return true;
-        }
-        // sleep for a bit
-        await new Promise((resolve) => setTimeout(resolve, 50));
-    }
-    return false;
-}
-
-async function releaseLock() {
-    try {
-        await fs.promises.rm(LOCK_FILE, { recursive: true });
-    } catch (e) {}
-}
-
-async function loadConfig(): Promise<Record<string, any>> {
-    try {
-        const content = await fs.promises.readFile(CONFIG_FILE, "utf-8");
-        return JSON.parse(content);
-    } catch (e) {
-        return {};
-    }
-}
-
-async function saveConfig(config: Record<string, any>) {
-    try {
-        await fs.promises.mkdir("/user_data", { recursive: true });
-    } catch (e) {}
-    await fs.promises.writeFile(CONFIG_FILE, JSON.stringify(config, null, 2));
-}
+import { get, set, list, del } from "fullstacked/config";
 
 export async function getConfig(key?: string): Promise<string> {
-    const config = await loadConfig();
     if (!key) return null;
-    return config?.[key]?.toString();
+    const val = await get(key);
+    if (val === undefined || val === null) return undefined;
+    return val;
 }
 
 export async function setConfig(key: string, value: string): Promise<void> {
-    if (!(await acquireLock())) {
-        throw new Error("Could not acquire lock for config file");
-    }
-    try {
-        const latestConfig = await loadConfig();
-        latestConfig[key] = value.toString();
-        await saveConfig(latestConfig);
-    } finally {
-        await releaseLock();
-    }
+    await set(key, value?.toString() ?? "");
 }
 
 export async function deleteConfig(key: string): Promise<void> {
-    if (!(await acquireLock())) {
-        throw new Error("Could not acquire lock for config file");
-    }
-    try {
-        const latestConfig = await loadConfig();
-        delete latestConfig[key];
-        await saveConfig(latestConfig);
-    } finally {
-        await releaseLock();
-    }
+    await del(key);
 }
 
 export const config: Command = {
@@ -121,7 +62,7 @@ export const config: Command = {
                 try {
                     await setConfig(key, value);
                     shell.writeln(`Set "${key}" to "${value}"`);
-                } catch (e) {
+                } catch (e: any) {
                     shell.writeln(e.message);
                     return 1;
                 }
@@ -135,14 +76,14 @@ export const config: Command = {
                 try {
                     await deleteConfig(key);
                     shell.writeln(`Deleted "${key}" from config`);
-                } catch (e) {
+                } catch (e: any) {
                     shell.writeln(e.message);
                     return 1;
                 }
                 break;
 
             case "list":
-                const allConfig = await loadConfig();
+                const allConfig = (await list()) || {};
                 const keys = Object.keys(allConfig);
                 if (keys.length === 0) {
                     shell.writeln("Configuration is empty.");

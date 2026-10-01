@@ -24,7 +24,8 @@ export const run: Command = {
         const target = positionals[0] || ".";
 
         try {
-            await runFn({ directory: target, env });
+            const ctx = await runFn({ directory: target, env });
+            window.fullstacked.open(ctx);
             (document.activeElement as HTMLElement)?.blur?.();
         } catch (e) {
             shell.writeln(`run: ${e.message}`);

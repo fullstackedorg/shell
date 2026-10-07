@@ -14,11 +14,11 @@ export function parseSignature(sigStr: string): Buffer | null {
     try {
         const b = Buffer.from(clean, "base64url");
         if (b.length === 64) return b;
-    } catch { }
+    } catch {}
     try {
         const b = Buffer.from(clean, "base64");
         if (b.length === 64) return b;
-    } catch { }
+    } catch {}
     return null;
 }
 
@@ -44,97 +44,61 @@ export function verifyEd25519(
         });
 
         const msgBuffer =
-            typeof message === "string" ? Buffer.from(message, "utf-8") : message;
+            typeof message === "string"
+                ? Buffer.from(message, "utf-8")
+                : message;
         return crypto.verify(null, msgBuffer, key, sigBuffer);
     } catch {
         return false;
     }
 }
 
-export function verifyFullStackedCloudSignature(
-    targetUrl: string | URL,
-    sigStr?: string | null,
-    expVal?: string | number | null,
+/**
+ * Message FullStacked Cloud signs for a shell command: the JSON array of the command name and
+ * every argument, in order, with the `sig` parameter removed from the signed URL
+ * (`new URL(...).toString()`), e.g. `["exec","https://i.fullstacked.cloud/?exp=1791353907","-y"]`.
+ * Adding, removing, reordering or editing any argument (including `-y`) invalidates the signature.
+ */
+export function signedCommandMessage(tokens: string[]): string {
+    return JSON.stringify(tokens);
+}
+
+/**
+ * Verifies a command signed by FullStacked Cloud. Exactly one argument must be an https URL
+ * carrying `sig` (128 hex chars) and a future `exp` (Unix seconds); the signature must cover
+ * the whole command (see signedCommandMessage).
+ */
+export function verifyFullStackedCloudCommand(
+    tokens: string[],
     publicKeyHex: string = FULLSTACKED_CLOUD_PUBLIC_KEY
 ): boolean {
     try {
-        let urlObj: URL;
-        if (typeof targetUrl === "string") {
-            let normalized = targetUrl.trim();
-            if (!/^https?:\/\//i.test(normalized)) {
-                normalized = "https://" + normalized;
-            }
-            urlObj = new URL(normalized);
-        } else {
-            urlObj = new URL(targetUrl.toString());
+        let signedIndex = -1;
+        let signedUrl: URL | null = null;
+        for (let i = 0; i < tokens.length; i++) {
+            if (!/^https:\/\//i.test(tokens[i])) continue;
+            const url = new URL(tokens[i]);
+            if (!url.searchParams.has("sig")) continue;
+            if (signedUrl) return false;
+            signedIndex = i;
+            signedUrl = url;
         }
+        if (!signedUrl) return false;
 
-        const effectiveSig = sigStr ?? urlObj.searchParams.get("sig");
-        const effectiveExp = expVal ?? urlObj.searchParams.get("exp");
-
-        if (!effectiveSig) {
+        const sig = signedUrl.searchParams.getAll("sig");
+        const exp = signedUrl.searchParams.getAll("exp");
+        if (sig.length !== 1 || exp.length !== 1) return false;
+        if (!/^[0-9a-f]{128}$/i.test(sig[0]) || !/^\d{1,12}$/.test(exp[0]))
             return false;
-        }
+        if (Number(exp[0]) * 1000 <= Date.now()) return false;
 
-        const expNum =
-            typeof effectiveExp === "number"
-                ? effectiveExp
-                : parseInt(String(effectiveExp || ""), 10);
-        if (!expNum || isNaN(expNum) || expNum <= 0) {
-            return false;
-        }
-
-        // Exp check (support seconds vs milliseconds)
-        const expTimestampMs = expNum < 1e11 ? expNum * 1000 : expNum;
-        if (expTimestampMs <= Date.now()) {
-            return false;
-        }
-
-        // URL without sig param
-        const urlWithoutSig = new URL(urlObj.toString());
-        urlWithoutSig.searchParams.delete("sig");
-
-        const candidateMessages = new Set<string>();
-
-        // Canonical full URLs
-        candidateMessages.add(urlWithoutSig.toString());
-        candidateMessages.add(urlWithoutSig.href);
-
-        // Protocol-relative or raw host paths
-        candidateMessages.add(urlWithoutSig.href.replace(/^https?:\/\//i, ""));
-        candidateMessages.add(
-            `${urlWithoutSig.origin}${urlWithoutSig.pathname}${urlWithoutSig.search}`
+        signedUrl.searchParams.delete("sig");
+        const unsignedUrl = signedUrl.toString();
+        const message = signedCommandMessage(
+            tokens.map((token, i) => (i === signedIndex ? unsignedUrl : token))
         );
-        candidateMessages.add(
-            `${urlWithoutSig.host}${urlWithoutSig.pathname}${urlWithoutSig.search}`
-        );
-        candidateMessages.add(
-            `${urlWithoutSig.hostname}${urlWithoutSig.pathname}${urlWithoutSig.search}`
-        );
-
-        // Sorted search params variations
-        const sortedUrl = new URL(urlWithoutSig.toString());
-        sortedUrl.searchParams.sort();
-        candidateMessages.add(sortedUrl.toString());
-        candidateMessages.add(sortedUrl.href);
-        candidateMessages.add(sortedUrl.href.replace(/^https?:\/\//i, ""));
-        candidateMessages.add(
-            `${sortedUrl.host}${sortedUrl.pathname}${sortedUrl.search}`
-        );
-
-        // Extra common formats: host:exp, host/path:exp
-        candidateMessages.add(`${urlWithoutSig.host}:${expNum}`);
-        candidateMessages.add(
-            `${urlWithoutSig.host}${urlWithoutSig.pathname}:${expNum}`
-        );
-        candidateMessages.add(`${urlWithoutSig.href}:${expNum}`);
-
-        for (const msg of candidateMessages) {
-            if (verifyEd25519(msg, effectiveSig, publicKeyHex)) {
-                return true;
-            }
-        }
-    } catch { }
-
-    return false;
+        return verifyEd25519(message, sig[0], publicKeyHex);
+    } catch {
+        return false;
+    }
 }

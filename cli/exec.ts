@@ -2,7 +2,7 @@ import { Command } from "./types";
 import { Shell } from "../shell";
 import { fullstacked } from "./fullstacked";
 import { parseArgs } from "./utils";
-import { verifyFullStackedCloudSignature } from "../utils/crypto";
+import { verifyFullStackedCloudCommand } from "../utils/crypto";
 import fs from "fs";
 import path from "path";
 import os from "os";
@@ -67,11 +67,13 @@ export function parseExecArgs(
 
         try {
             urlObj = new URL(normalizedUrl);
-            const sig = urlObj.searchParams.get("sig");
-            const exp = urlObj.searchParams.get("exp");
-            if (sig && exp) {
+            if (urlObj.searchParams.has("sig")) {
                 hasSignature = true;
-                isSignatureValid = verifyFullStackedCloudSignature(urlObj, sig, exp);
+                // The signature must cover the whole command, every argument included.
+                isSignatureValid = verifyFullStackedCloudCommand([
+                    "exec",
+                    ...args
+                ]);
                 if (isSignatureValid) {
                     skipPrompt = true;
                 }

@@ -4,8 +4,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Shell } from "./shell";
 import parentWindow from "fullstacked/parentWindow";
 import config from "fullstacked/config";
-import { parseCommandLine } from "./utils/parser";
-import { parseExecArgs } from "./cli/exec";
+import { resolveDeeplink } from "./utils/deeplink";
 
 parentWindow.disableAutoWindowSize();
 
@@ -247,54 +246,11 @@ transition: padding-bottom 0.22s cubic-bezier(0.16, 1, 0.3, 1);`;
         `Welcome to FullStacked${v ? ` v${v.major}.${v.minor}.${v.patch}` : ""}`
     );
 
-    const deeplink = process.env.DEEPLINK;
-    let deeplinkCommand: string | null = null;
-    if (deeplink) {
-        let path = deeplink;
-        if (path.startsWith("fullstacked://")) {
-            path = path.slice("fullstacked://".length);
-        } else if (path.startsWith("fullstacked:")) {
-            path = path.slice("fullstacked:".length);
-        }
-        if (path.startsWith("/")) {
-            path = path.slice(1);
-        }
-        if (path.startsWith("command/")) {
-            deeplinkCommand = path.slice("command/".length);
-            try {
-                deeplinkCommand = decodeURIComponent(deeplinkCommand);
-            } catch { }
-        }
-    }
-
-    let commandToRun: string | null = null;
-    let commandToPrefill: string | null = null;
-
-    if (deeplinkCommand) {
-        const sanitized = deeplinkCommand.split(/[\r\n]/)[0].trim();
-        if (sanitized) {
-            const parsedCommands = parseCommandLine(sanitized);
-            if (
-                parsedCommands.length === 1 &&
-                parsedCommands[0].name === "exec"
-            ) {
-                const execTarget = parseExecArgs(parsedCommands[0].args);
-                console.log(execTarget)
-                if (
-                    execTarget &&
-                    execTarget.type === "url" &&
-                    execTarget.hasSignature &&
-                    execTarget.isSignatureValid
-                ) {
-                    commandToRun = sanitized;
-                } else {
-                    commandToPrefill = sanitized;
-                }
-            } else {
-                commandToPrefill = sanitized;
-            }
-        }
-    }
+    const deeplink = process.env.DEEPLINK
+        ? resolveDeeplink(process.env.DEEPLINK)
+        : null;
+    const commandToRun = deeplink?.autoRun ? deeplink.command : null;
+    const commandToPrefill = deeplink?.autoRun ? null : deeplink?.command;
 
     if (commandToRun) {
         shell.prompt();

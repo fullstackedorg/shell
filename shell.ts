@@ -488,6 +488,27 @@ export class Shell extends EventEmitter {
         this.terminal.clear();
     }
 
+    // Shows a command coming from outside the terminal (deeplink) on the
+    // prompt: runs it, or only prefills it for the user to decide. Waits for
+    // the running command (if any) to finish first.
+    async receiveCommand(cmd: string, run: boolean) {
+        while (this.currentExecutionPromise) {
+            await this.currentExecutionPromise.catch(() => {});
+        }
+        if (this.command) {
+            this.terminal.write("^C");
+            this.prompt();
+            this.command = "";
+            this.cursorPos = 0;
+        }
+        if (!run) {
+            this.prefill(cmd);
+            return;
+        }
+        this.terminal.write(cmd + "\r\n");
+        await this.executeCommand(cmd);
+    }
+
     redrawInput() {
         const promptStr = `${process.cwd()} $ `;
         const cols = this.terminal.cols;

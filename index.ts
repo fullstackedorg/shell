@@ -4,6 +4,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Shell } from "./shell";
 import parentWindow from "fullstacked/parentWindow";
 import config from "fullstacked/config";
+import plugin from "fullstacked/plugin";
 import { resolveDeeplink } from "./utils/deeplink";
 
 parentWindow.disableAutoWindowSize();
@@ -246,22 +247,19 @@ transition: padding-bottom 0.22s cubic-bezier(0.16, 1, 0.3, 1);`;
         `Welcome to FullStacked${v ? ` v${v.major}.${v.minor}.${v.patch}` : ""}`
     );
 
-    const deeplink = process.env.DEEPLINK
-        ? resolveDeeplink(process.env.DEEPLINK)
-        : null;
-    const commandToRun = deeplink?.autoRun ? deeplink.command : null;
-    const commandToPrefill = deeplink?.autoRun ? null : deeplink?.command;
+    shell.prompt();
 
-    if (commandToRun) {
-        shell.prompt();
-        terminal.writeln(commandToRun);
-        shell.executeCommand(commandToRun);
-    } else {
-        shell.prompt();
-        if (commandToPrefill) {
-            shell.prefill(commandToPrefill);
+    // Deeplinks (fullstacked:///command/...) reach every running context
+    // through the core DeepLink function: run signed commands, prefill others.
+    plugin.register("deeplink", {
+        data: { name: "shell" },
+        callback: (url) => {
+            const deeplink = resolveDeeplink(url);
+            if (deeplink) {
+                shell.receiveCommand(deeplink.command, deeplink.autoRun);
+            }
         }
-    }
+    });
 
     terminal.onData((e) => {
         shell.handleInput(e);

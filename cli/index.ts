@@ -10,7 +10,6 @@ import { packages } from "./packages";
 import { bundle } from "./bundle";
 import { run } from "./run";
 import { exec } from "./exec";
-import { deeplink } from "./deeplink";
 import { npm } from "./npm";
 import { vi } from "./vi";
 import { mv } from "./mv";
@@ -40,7 +39,6 @@ export const commands: Record<string, Command> = {
     bundle,
     run,
     exec,
-    deeplink,
     npm,
     vi,
     ssh,

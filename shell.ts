@@ -1,14 +1,14 @@
 import { Terminal } from "@xterm/xterm";
 import { EventEmitter } from "events";
 import { Buffer } from "buffer";
-import { commands, aliases } from "./cli";
+import { commands } from "./cli";
 import { getConfig } from "./cli/config";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import plugin from "fullstacked/plugin";
 import { githubDeviceFlow } from "./utils/githubDeviceFlow";
 import { handleAutocomplete } from "./utils/autocomplete";
 import { setupUtilityButtons } from "./utils/utilityButtons";
-import { splitShellArgs } from "./utils/args";
+import { parseCommandLine } from "./utils/parser";
 import { copyText } from "./utils/clipboard";
 import fs from "fs";
 import path from "path";
@@ -471,6 +471,19 @@ export class Shell extends EventEmitter {
         return true;
     }
 
+    prefill(cmd: string) {
+        // Discard anything after a newline to prevent multiline injection
+        let sanitized = cmd.split(/[\r\n]/)[0];
+        // Strip any remaining control characters (including \r, \n, null bytes)
+        sanitized = sanitized.replace(/[\x00-\x1f\x7f]/g, " ").trim();
+        if (!sanitized) return;
+
+        this.command = sanitized;
+        this.cursorPos = sanitized.length;
+        this.terminal.write(sanitized);
+        this._lastDrawnCursorPos = sanitized.length;
+    }
+
     clear() {
         this.terminal.clear();
     }
@@ -930,93 +943,30 @@ export class Shell extends EventEmitter {
         signal?: AbortSignal,
         env?: Record<string, string>
     ): Promise<number> {
-        // Split by && but respect quotes if possible?
-        // For now simple split as requested, ensuring we don't break string literals if we can avoid it.
-        // But a simple split("&&") is the requested task.
-        const commandsToRun = this.splitCommands(cmdStr);
+        const parsedCommands = parseCommandLine(cmdStr, env);
         let lastExitCode = 0;
 
-        for (let cmd of commandsToRun) {
+        for (const cmd of parsedCommands) {
             if (signal?.aborted) break;
-            cmd = cmd.trim();
-            if (!cmd) continue;
 
-            const args = splitShellArgs(cmd);
-            const cmdEnv: Record<string, string> = { ...env };
-
-            while (
-                args.length > 0 &&
-                args[0].includes("=") &&
-                !args[0].startsWith("-")
-            ) {
-                const [key, ...rest] = args.shift()!.split("=");
-                cmdEnv[key] = rest.join("=");
-            }
-
-            if (args.length === 0) {
-                // If it's just `VAR=value`, Unix persists it or does nothing.
-                // We will persist it in process.env for convenience, or just continue.
-                Object.assign(process.env, cmdEnv);
+            if (cmd.isEnvOnly) {
+                Object.assign(process.env, cmd.env);
                 continue;
             }
 
-            const commandNameStr = args.join(" ");
-
-            const sortedAliases = Object.keys(aliases).sort(
-                (a, b) => b.length - a.length
-            );
-
-            let aliased = false;
-            for (const alias of sortedAliases) {
-                if (
-                    commandNameStr === alias ||
-                    commandNameStr.startsWith(alias + " ")
-                ) {
-                    const argsSuffix = commandNameStr.slice(alias.length);
-                    const expandedCmd = aliases[alias]
-                        .split("&&")
-                        .map((cmd) => cmd.trim() + argsSuffix)
-                        .join(" && ");
-
-                    const expandedCommands = this.splitCommands(expandedCmd);
-
-                    if (expandedCommands.length > 1) {
-                        lastExitCode = await this.executeLine(
-                            expandedCmd,
-                            signal,
-                            cmdEnv
-                        );
-                        aliased = true;
-                    } else {
-                        // Replace args for the current iteration
-                        const newArgs = splitShellArgs(expandedCmd);
-                        args.length = 0;
-                        args.push(...newArgs);
-                    }
-                    break;
-                }
-            }
-
-            if (aliased) {
-                if (lastExitCode !== 0) break;
+            if (!cmd.name) {
                 continue;
             }
 
-            const commandName = args.shift();
-
-            if (!commandName) {
-                continue;
-            }
-
-            const command = commands[commandName];
+            const command = commands[cmd.name];
             if (command) {
                 const exitCode = await command.execute(
-                    args,
+                    [...cmd.args],
                     this,
                     (handler) => {
                         this.currentCancelHandler = handler;
                     },
-                    cmdEnv
+                    cmd.env
                 );
                 this.currentCancelHandler = null;
 
@@ -1025,9 +975,9 @@ export class Shell extends EventEmitter {
                     break;
                 }
             } else {
-                this.writeln(`command not found: ${commandName}`);
+                this.writeln(`command not found: ${cmd.name}`);
                 lastExitCode = 1;
-                break; // Stop execution on error
+                break;
             }
         }
 
@@ -1164,40 +1114,5 @@ export class Shell extends EventEmitter {
         } catch (e) {
             return null;
         }
-    }
-
-    private splitCommands(cmdStr: string): string[] {
-        const commands: string[] = [];
-        let currentCommand = "";
-        let inQuote: string | null = null;
-
-        for (let i = 0; i < cmdStr.length; i++) {
-            const char = cmdStr[i];
-
-            if (inQuote) {
-                if (char === inQuote) {
-                    inQuote = null;
-                }
-                currentCommand += char;
-            } else {
-                if (char === '"' || char === "'") {
-                    inQuote = char;
-                    currentCommand += char;
-                } else if (char === "&" && cmdStr[i + 1] === "&") {
-                    // Start of && operator
-                    commands.push(currentCommand);
-                    currentCommand = "";
-                    i++; // Skip the second &
-                } else {
-                    currentCommand += char;
-                }
-            }
-        }
-
-        if (currentCommand) {
-            commands.push(currentCommand);
-        }
-
-        return commands;
     }
 }

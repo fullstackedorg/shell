@@ -4,6 +4,8 @@ import { FitAddon } from "@xterm/addon-fit";
 import { Shell } from "./shell";
 import parentWindow from "fullstacked/parentWindow";
 import config from "fullstacked/config";
+import { parseCommandLine } from "./utils/parser";
+import { parseExecArgs } from "./cli/exec";
 
 parentWindow.disableAutoWindowSize();
 
@@ -44,11 +46,11 @@ export function preventNativeMobileKeyboard() {
             el.setAttribute("inputmode", "none");
             try {
                 (el as any).inputMode = "none";
-            } catch {}
+            } catch { }
             el.setAttribute("virtualkeyboardpolicy", "manual");
             try {
                 (el as any).virtualKeyboardPolicy = "manual";
-            } catch {}
+            } catch { }
             el.setAttribute("autocomplete", "off");
             el.setAttribute("autocorrect", "off");
             el.setAttribute("autocapitalize", "off");
@@ -101,7 +103,7 @@ export function preventNativeMobileKeyboard() {
                 try {
                     (navigator as any).virtualKeyboard.overlaysContent = true;
                     (navigator as any).virtualKeyboard.hide?.();
-                } catch {}
+                } catch { }
             }
         },
         { capture: true }
@@ -111,7 +113,7 @@ export function preventNativeMobileKeyboard() {
         try {
             (navigator as any).virtualKeyboard.overlaysContent = true;
             (navigator as any).virtualKeyboard.hide?.();
-        } catch {}
+        } catch { }
     }
 }
 
@@ -244,7 +246,66 @@ transition: padding-bottom 0.22s cubic-bezier(0.16, 1, 0.3, 1);`;
     terminal.writeln(
         `Welcome to FullStacked${v ? ` v${v.major}.${v.minor}.${v.patch}` : ""}`
     );
-    shell.prompt();
+
+    const deeplink = process.env.DEEPLINK;
+    let deeplinkCommand: string | null = null;
+    if (deeplink) {
+        let path = deeplink;
+        if (path.startsWith("fullstacked://")) {
+            path = path.slice("fullstacked://".length);
+        } else if (path.startsWith("fullstacked:")) {
+            path = path.slice("fullstacked:".length);
+        }
+        if (path.startsWith("/")) {
+            path = path.slice(1);
+        }
+        if (path.startsWith("command/")) {
+            deeplinkCommand = path.slice("command/".length);
+            try {
+                deeplinkCommand = decodeURIComponent(deeplinkCommand);
+            } catch { }
+        }
+    }
+
+    let commandToRun: string | null = null;
+    let commandToPrefill: string | null = null;
+
+    if (deeplinkCommand) {
+        const sanitized = deeplinkCommand.split(/[\r\n]/)[0].trim();
+        if (sanitized) {
+            const parsedCommands = parseCommandLine(sanitized);
+            if (
+                parsedCommands.length === 1 &&
+                parsedCommands[0].name === "exec"
+            ) {
+                const execTarget = parseExecArgs(parsedCommands[0].args);
+                console.log(execTarget)
+                if (
+                    execTarget &&
+                    execTarget.type === "url" &&
+                    execTarget.hasSignature &&
+                    execTarget.isSignatureValid
+                ) {
+                    commandToRun = sanitized;
+                } else {
+                    commandToPrefill = sanitized;
+                }
+            } else {
+                commandToPrefill = sanitized;
+            }
+        }
+    }
+
+    if (commandToRun) {
+        shell.prompt();
+        terminal.writeln(commandToRun);
+        shell.executeCommand(commandToRun);
+    } else {
+        shell.prompt();
+        if (commandToPrefill) {
+            shell.prefill(commandToPrefill);
+        }
+    }
 
     terminal.onData((e) => {
         shell.handleInput(e);
@@ -256,11 +317,11 @@ transition: padding-bottom 0.22s cubic-bezier(0.16, 1, 0.3, 1);`;
             terminal.textarea.setAttribute("inputmode", "none");
             try {
                 (terminal.textarea as any).inputMode = "none";
-            } catch {}
+            } catch { }
             terminal.textarea.setAttribute("virtualkeyboardpolicy", "manual");
             try {
                 (terminal.textarea as any).virtualKeyboardPolicy = "manual";
-            } catch {}
+            } catch { }
             terminal.textarea.setAttribute("autocomplete", "off");
             terminal.textarea.setAttribute("autocorrect", "off");
             terminal.textarea.setAttribute("autocapitalize", "off");

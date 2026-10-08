@@ -25,6 +25,7 @@ import { sleep } from "./sleep";
 import { exit } from "./exit";
 import { fullstacked } from "./fullstacked";
 import { help } from "./help";
+import { bench } from "./bench";
 
 export const commands: Record<string, Command> = {
     ls,
@@ -52,7 +53,8 @@ export const commands: Record<string, Command> = {
     sleep,
     exit,
     fullstacked,
-    help
+    help,
+    bench
 };
 
 export const aliases: Record<string, string> = {

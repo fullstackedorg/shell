@@ -5,6 +5,167 @@ import path from "path";
 import prettyBytes from "pretty-bytes";
 import prettyMs from "pretty-ms";
 
+const te = new TextEncoder();
+
+type DataPart = {
+    // ascii: -d/--data/--data-ascii, @file is read and CR/LF are stripped
+    // binary: --data-binary, @file is read as is
+    // raw: --data-raw, no @file handling
+    mode: "ascii" | "binary" | "raw";
+    value: string;
+};
+
+type FormPart = {
+    name: string;
+    // name=value, name=@file (file upload) or name=<file (file contents as value)
+    value?: string;
+    file?: string;
+    fileAsValue?: boolean;
+    type?: string;
+    filename?: string;
+};
+
+function printUsage(shell: Shell) {
+    shell.writeln("Usage: curl [options...] <url>");
+    shell.writeln("Options:");
+    shell.writeln(
+        "  -o, --output <file>       Write to file instead of stdout"
+    );
+    shell.writeln("  -X, --request <method>    Specify request command to use");
+    shell.writeln(
+        "  -H, --header <header>     Pass custom header(s) to server"
+    );
+    shell.writeln(
+        "  -d, --data <data>         HTTP POST data, @file to read from a file"
+    );
+    shell.writeln("      --data-ascii <data>   Same as -d");
+    shell.writeln(
+        "      --data-binary <data>  HTTP POST binary data, @file sent as is"
+    );
+    shell.writeln("      --data-raw <data>     HTTP POST data, '@' allowed");
+    shell.writeln(
+        "  -F, --form <name=content> Multipart form data, name=@file to upload"
+    );
+    shell.writeln("  -T, --upload-file <file>  Transfer local file with PUT");
+    shell.writeln("  -L, --location            Follow redirects");
+}
+
+async function readLocalFile(file: string): Promise<Uint8Array> {
+    if (file === "-") {
+        throw new Error("reading from stdin is not supported");
+    }
+    const data = await fs.promises.readFile(path.resolve(process.cwd(), file));
+    return typeof data === "string" ? te.encode(data) : new Uint8Array(data);
+}
+
+async function readDataPart(part: DataPart): Promise<Uint8Array> {
+    if (part.mode === "raw" || !part.value.startsWith("@")) {
+        return te.encode(part.value);
+    }
+    const data = await readLocalFile(part.value.slice(1));
+    if (part.mode === "binary") {
+        return data;
+    }
+    return data.filter((b) => b !== 0x0a && b !== 0x0d);
+}
+
+function parseFormPart(arg: string): FormPart | null {
+    const eq = arg.indexOf("=");
+    if (eq <= 0) return null;
+    const name = arg.slice(0, eq);
+    const content = arg.slice(eq + 1);
+
+    if (!content.startsWith("@") && !content.startsWith("<")) {
+        return { name, value: content };
+    }
+
+    const [file, ...params] = content.slice(1).split(";");
+    const part: FormPart = { name, file, fileAsValue: content[0] === "<" };
+    for (const param of params) {
+        const [key, ...rest] = param.split("=");
+        const value = rest.join("=").replace(/^"(.*)"$/, "$1");
+        if (key.trim() === "type") part.type = value;
+        else if (key.trim() === "filename") part.filename = value;
+    }
+    return part;
+}
+
+// same extension table curl uses for -F file parts
+const contentTypes: Record<string, string> = {
+    ".gif": "image/gif",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".svg": "image/svg+xml",
+    ".txt": "text/plain",
+    ".htm": "text/html",
+    ".html": "text/html",
+    ".pdf": "application/pdf",
+    ".xml": "application/xml"
+};
+
+function guessContentType(file: string) {
+    return (
+        contentTypes[path.extname(file).toLowerCase()] ??
+        "application/octet-stream"
+    );
+}
+
+async function buildMultipart(parts: FormPart[]) {
+    const random = new Uint8Array(12);
+    crypto.getRandomValues(random);
+    const boundary =
+        "------------------------" +
+        Array.from(random, (b) => b.toString(16).padStart(2, "0")).join("");
+
+    const chunks: Uint8Array[] = [];
+    for (const part of parts) {
+        let disposition = `form-data; name="${part.name}"`;
+        let contentType = part.type;
+        let content: Uint8Array;
+
+        if (part.file === undefined) {
+            content = te.encode(part.value);
+        } else {
+            content = await readLocalFile(part.file);
+            if (!part.fileAsValue) {
+                const filename = part.filename ?? path.basename(part.file);
+                disposition += `; filename="${filename}"`;
+                contentType = contentType ?? guessContentType(part.file);
+            }
+        }
+
+        let head = `--${boundary}\r\nContent-Disposition: ${disposition}\r\n`;
+        if (contentType) {
+            head += `Content-Type: ${contentType}\r\n`;
+        }
+        chunks.push(te.encode(head + "\r\n"), content, te.encode("\r\n"));
+    }
+    chunks.push(te.encode(`--${boundary}--\r\n`));
+
+    return {
+        body: mergeChunks(chunks),
+        contentType: `multipart/form-data; boundary=${boundary}`
+    };
+}
+
+function mergeChunks(chunks: Uint8Array[], separator?: Uint8Array) {
+    const parts: Uint8Array[] = [];
+    chunks.forEach((chunk, i) => {
+        if (separator && i > 0) parts.push(separator);
+        parts.push(chunk);
+    });
+    const merged = new Uint8Array(
+        parts.reduce((size, part) => size + part.byteLength, 0)
+    );
+    let offset = 0;
+    for (const part of parts) {
+        merged.set(part, offset);
+        offset += part.byteLength;
+    }
+    return merged;
+}
+
 export const curl: Command = {
     name: "curl",
     description: "transfer a URL",
@@ -18,28 +179,27 @@ export const curl: Command = {
             args.includes("-h") ||
             args[0] === "help"
         ) {
-            shell.writeln("Usage: curl [options...] <url>");
-            shell.writeln("Options:");
-            shell.writeln(
-                "  -o, --output <file>    Write to file instead of stdout"
-            );
-            shell.writeln(
-                "  -X, --request <method> Specify request command to use"
-            );
-            shell.writeln(
-                "  -H, --header <header>  Pass custom header(s) to server"
-            );
-            shell.writeln("  -d, --data <data>      HTTP POST data");
-            shell.writeln("  -L, --location         Follow redirects");
+            printUsage(shell);
             return 0;
         }
 
         let urlStr = "";
         let outputFile = "";
         let method = "GET";
+        let explicitMethod = false;
         const headers: Record<string, string> = {};
-        let data: string | undefined = undefined;
+        const dataParts: DataPart[] = [];
+        const formParts: FormPart[] = [];
+        let uploadFile: string | undefined = undefined;
         let followLocation = false;
+
+        const dataOptions: Record<string, DataPart["mode"]> = {
+            "-d": "ascii",
+            "--data": "ascii",
+            "--data-ascii": "ascii",
+            "--data-binary": "binary",
+            "--data-raw": "raw"
+        };
 
         for (let i = 0; i < args.length; i++) {
             const arg = args[i];
@@ -59,6 +219,7 @@ export const curl: Command = {
                     );
                     return 1;
                 }
+                explicitMethod = true;
             } else if (arg === "-H" || arg === "--header") {
                 const headerVal = args[++i];
                 if (!headerVal) {
@@ -77,16 +238,34 @@ export const curl: Command = {
                         `curl: warning: Header '${headerVal}' has no colon separator. Ignored.`
                     );
                 }
-            } else if (arg === "-d" || arg === "--data") {
-                data = args[++i];
-                if (data === undefined) {
+            } else if (dataOptions[arg]) {
+                const value = args[++i];
+                if (value === undefined) {
+                    shell.writeln(`curl: option ${arg} requires an argument`);
+                    return 1;
+                }
+                dataParts.push({ mode: dataOptions[arg], value });
+            } else if (arg === "-F" || arg === "--form") {
+                const value = args[++i];
+                if (value === undefined) {
                     shell.writeln(
-                        "curl: option -d/--data requires an argument"
+                        "curl: option -F/--form requires an argument"
                     );
                     return 1;
                 }
-                if (method === "GET") {
-                    method = "POST";
+                const part = parseFormPart(value);
+                if (!part) {
+                    shell.writeln(`curl: option ${arg}: is badly used here`);
+                    return 1;
+                }
+                formParts.push(part);
+            } else if (arg === "-T" || arg === "--upload-file") {
+                uploadFile = args[++i];
+                if (uploadFile === undefined) {
+                    shell.writeln(
+                        "curl: option -T/--upload-file requires an argument"
+                    );
+                    return 1;
                 }
             } else if (arg === "-L" || arg === "--location") {
                 followLocation = true;
@@ -100,26 +279,66 @@ export const curl: Command = {
 
         if (!urlStr) {
             shell.writeln("curl: no URL specified!");
-            shell.writeln("Usage: curl [options...] <url>");
-            shell.writeln("Options:");
-            shell.writeln(
-                "  -o, --output <file>    Write to file instead of stdout"
-            );
-            shell.writeln(
-                "  -X, --request <method> Specify request command to use"
-            );
-            shell.writeln(
-                "  -H, --header <header>  Pass custom header(s) to server"
-            );
-            shell.writeln("  -d, --data <data>      HTTP POST data");
-            shell.writeln("  -L, --location         Follow redirects");
+            printUsage(shell);
             return 1;
+        }
+
+        const bodyKinds = [
+            dataParts.length > 0,
+            formParts.length > 0,
+            uploadFile !== undefined
+        ].filter(Boolean).length;
+        if (bodyKinds > 1) {
+            shell.writeln(
+                "Warning: You can only select one HTTP request method! You asked"
+            );
+            shell.writeln("Warning: for both POST (-d / -F) and PUT (-T).");
+            return 2;
         }
 
         // Ensure protocol exists. If not specified, default to http://
         let url = urlStr;
         if (!/^https?:\/\//i.test(url)) {
             url = "http://" + url;
+        }
+
+        let body: Uint8Array | undefined = undefined;
+        let defaultContentType: string | undefined = undefined;
+        let defaultMethod = "GET";
+        try {
+            if (dataParts.length > 0) {
+                body = mergeChunks(
+                    await Promise.all(dataParts.map(readDataPart)),
+                    te.encode("&")
+                );
+                defaultContentType = "application/x-www-form-urlencoded";
+                defaultMethod = "POST";
+            } else if (formParts.length > 0) {
+                const multipart = await buildMultipart(formParts);
+                body = multipart.body;
+                defaultContentType = multipart.contentType;
+                defaultMethod = "POST";
+            } else if (uploadFile !== undefined) {
+                body = await readLocalFile(uploadFile);
+                defaultMethod = "PUT";
+                // like curl, append the file name to a URL ending with /
+                const parsed = new URL(url);
+                if (parsed.pathname.endsWith("/")) {
+                    parsed.pathname += encodeURIComponent(
+                        path.basename(uploadFile)
+                    );
+                    url = parsed.toString();
+                }
+            }
+        } catch (e: any) {
+            shell.writeln(
+                `curl: (26) Failed to open/read local data from file/application: ${e.message}`
+            );
+            return 26;
+        }
+
+        if (!explicitMethod) {
+            method = defaultMethod;
         }
 
         let isCancelled = false;
@@ -145,14 +364,13 @@ export const curl: Command = {
                 redirect: followLocation ? "follow" : "manual"
             };
 
-            if (data !== undefined) {
-                fetchOpts.body = data;
+            if (body !== undefined) {
+                fetchOpts.body = body as BodyInit;
                 const contentTypeKey = Object.keys(headers).find(
                     (k) => k.toLowerCase() === "content-type"
                 );
-                if (!contentTypeKey) {
-                    headers["Content-Type"] =
-                        "application/x-www-form-urlencoded";
+                if (!contentTypeKey && defaultContentType) {
+                    headers["Content-Type"] = defaultContentType;
                 }
             }
 

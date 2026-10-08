@@ -44,6 +44,7 @@ export const help: Command = {
         shell.writeln("  auth          Authentication utilities");
         shell.writeln("  config        Configuration options");
         shell.writeln("  version       Display current version");
+        shell.writeln("  bench         Benchmark the core bridge");
         shell.writeln("  exit          Exit the shell");
         shell.write("\n");
         return 0;

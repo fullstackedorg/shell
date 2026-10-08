@@ -498,6 +498,9 @@ export const bench: Command = {
             platform: os.platform(),
             arch: os.arch(),
             fullstackedVersion: version,
+            // frames, shared-buffers, evaluated or websocket, see bridge/frames.ts
+            streamTransport:
+                (globalThis as any).fullstacked?.streamTransport ?? null,
             timestamp: new Date().toISOString(),
             options: {
                 iterations: opts.iterations,
@@ -514,7 +517,7 @@ export const bench: Command = {
 
         shell.writeln(
             gray(
-                `FullStacked ${version ?? "unknown"} (${commit ?? "unknown"}) on ${meta.platform}/${meta.arch}`
+                `FullStacked ${version ?? "unknown"} (${commit ?? "unknown"}) on ${meta.platform}/${meta.arch}, streams: ${meta.streamTransport ?? "unknown"}`
             )
         );
         shell.writeln(

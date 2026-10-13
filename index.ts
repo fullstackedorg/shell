@@ -6,6 +6,7 @@ import parentWindow from "fullstacked/parentWindow";
 import config from "fullstacked/config";
 import plugin from "fullstacked/plugin";
 import { resolveDeeplink } from "./utils/deeplink";
+import "./auto";
 
 parentWindow.disableAutoWindowSize();
 
@@ -46,11 +47,11 @@ export function preventNativeMobileKeyboard() {
             el.setAttribute("inputmode", "none");
             try {
                 (el as any).inputMode = "none";
-            } catch { }
+            } catch {}
             el.setAttribute("virtualkeyboardpolicy", "manual");
             try {
                 (el as any).virtualKeyboardPolicy = "manual";
-            } catch { }
+            } catch {}
             el.setAttribute("autocomplete", "off");
             el.setAttribute("autocorrect", "off");
             el.setAttribute("autocapitalize", "off");
@@ -103,7 +104,7 @@ export function preventNativeMobileKeyboard() {
                 try {
                     (navigator as any).virtualKeyboard.overlaysContent = true;
                     (navigator as any).virtualKeyboard.hide?.();
-                } catch { }
+                } catch {}
             }
         },
         { capture: true }
@@ -113,7 +114,7 @@ export function preventNativeMobileKeyboard() {
         try {
             (navigator as any).virtualKeyboard.overlaysContent = true;
             (navigator as any).virtualKeyboard.hide?.();
-        } catch { }
+        } catch {}
     }
 }
 
@@ -271,11 +272,11 @@ transition: padding-bottom 0.22s cubic-bezier(0.16, 1, 0.3, 1);`;
             terminal.textarea.setAttribute("inputmode", "none");
             try {
                 (terminal.textarea as any).inputMode = "none";
-            } catch { }
+            } catch {}
             terminal.textarea.setAttribute("virtualkeyboardpolicy", "manual");
             try {
                 (terminal.textarea as any).virtualKeyboardPolicy = "manual";
-            } catch { }
+            } catch {}
             terminal.textarea.setAttribute("autocomplete", "off");
             terminal.textarea.setAttribute("autocorrect", "off");
             terminal.textarea.setAttribute("autocapitalize", "off");

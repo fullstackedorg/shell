@@ -104,7 +104,7 @@ const SIZES: [string, number][] = [
     ["1m", MiB]
 ];
 // small inputs many times, large ones a few
-const countFor = (bytes: number) => (bytes <= KiB ? 10_000 : 20);
+const countFor = (bytes: number) => (bytes <= KiB ? 20_000 : 20);
 
 function bufferCases(): BenchCase[] {
     const cases: BenchCase[] = [];
@@ -169,7 +169,7 @@ function bufferCases(): BenchCase[] {
 
     add(
         "concat 1024x1k",
-        100,
+        1000,
         () => {
             const list = Array.from({ length: 1024 }, (_, i) =>
                 Buffer.alloc(KiB, i)
@@ -178,7 +178,7 @@ function bufferCases(): BenchCase[] {
         },
         MiB
     );
-    add("readUInt32BE", 1_000_000, () => {
+    add("readUInt32BE", 10_000_000, () => {
         const b = Buffer.from(randomish(64 * KiB));
         let offset = 0;
         let sum = 0;
@@ -220,7 +220,7 @@ function eventsCases(): BenchCase[] {
     const suite = "events";
     const emitCase = (listeners: number): BenchCase => ({
         suite,
-        name: `emit ${listeners} listener${listeners > 1 ? "s" : ""} x1M`,
+        name: `emit ${listeners} listener${listeners > 1 ? "s" : ""} x10M`,
         sync: true,
         measure: () => {
             const ee = new EventEmitter();
@@ -228,7 +228,7 @@ function eventsCases(): BenchCase[] {
             for (let i = 0; i < listeners; i++) {
                 ee.on("data", (value: number) => (calls += value));
             }
-            return measureOps(1_000_000, () => ee.emit("data", 1));
+            return measureOps(10_000_000, () => ee.emit("data", 1));
         }
     });
     return [
@@ -236,12 +236,12 @@ function eventsCases(): BenchCase[] {
         emitCase(4),
         {
             suite,
-            name: "once + emit x100k",
+            name: "once + emit x1M",
             sync: true,
             measure: () => {
                 const ee = new EventEmitter();
                 const listener = () => {};
-                return measureOps(100_000, () => {
+                return measureOps(1_000_000, () => {
                     ee.once("data", listener);
                     ee.emit("data");
                 });
@@ -249,11 +249,11 @@ function eventsCases(): BenchCase[] {
         },
         {
             suite,
-            name: "events.once await x10k",
+            name: "events.once await x100k",
             sync: false,
             measure: () => {
                 const ee = new EventEmitter();
-                return measureOps(10_000, () => {
+                return measureOps(100_000, () => {
                     const p = once(ee, "data");
                     ee.emit("data", 1);
                     return p;
@@ -351,7 +351,7 @@ async function echoThrough(socket: Duplex, total: number, chunkSize: number) {
 function streamCases(opts: ShimOptions): BenchCase[] {
     const suite = "stream";
     const cases: BenchCase[] = [];
-    const total = 64 * MiB;
+    const total = 512 * MiB;
     for (const [label, chunkSize] of [
         ["64k", 64 * KiB],
         ["4k", 4 * KiB]
@@ -360,7 +360,7 @@ function streamCases(opts: ShimOptions): BenchCase[] {
         cases.push(
             {
                 suite,
-                name: `PassThrough pipe 64m / ${label} chunks`,
+                name: `PassThrough pipe 512m / ${label} chunks`,
                 sync: false,
                 measure: () => {
                     const out = sink();
@@ -378,7 +378,7 @@ function streamCases(opts: ShimOptions): BenchCase[] {
             },
             {
                 suite,
-                name: `PassThrough pipeline 64m / ${label} chunks`,
+                name: `PassThrough pipeline 512m / ${label} chunks`,
                 sync: false,
                 measure: () => {
                     const out = sink();
@@ -398,10 +398,10 @@ function streamCases(opts: ShimOptions): BenchCase[] {
         );
     }
 
-    const objects = 100_000;
+    const objects = 1_000_000;
     cases.push({
         suite,
-        name: "Readable.from 100k objects",
+        name: "Readable.from 1M objects",
         sync: false,
         measure: () => {
             const items = Array.from({ length: objects }, (_, i) => ({ i }));
@@ -510,25 +510,25 @@ function utilCases(): BenchCase[] {
         },
         {
             suite,
-            name: "format %s %d %j x100k",
+            name: "format %s %d %j x1M",
             sync: true,
             measure: () => {
                 const json = { a: 1, b: [1, 2, 3], c: "text" };
-                return measureOps(100_000, () =>
+                return measureOps(1_000_000, () =>
                     util.format("%s %d %j", "value", 42, json)
                 );
             }
         },
         {
             suite,
-            name: "promisify call x100k",
+            name: "promisify call x1M",
             sync: false,
             measure: () => {
                 const fn = util.promisify(
                     (value: number, callback: (e: null, r: number) => void) =>
                         callback(null, value + 1)
                 );
-                return measureOps(100_000, () => fn(1));
+                return measureOps(1_000_000, () => fn(1));
             }
         },
         {
@@ -903,7 +903,7 @@ function xmlCases(opts: ShimOptions): BenchCase[] {
                 );
                 timer = setTimeout(
                     () => reject(new Error("xml worker timed out")),
-                    5 * 60 * 1000
+                    100 * 1000
                 );
             });
             if (data.error) throw new Error(data.error);

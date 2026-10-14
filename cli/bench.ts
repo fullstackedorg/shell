@@ -44,6 +44,7 @@ type BenchOptions = {
     sync: boolean;
     async: boolean;
     tmpFile: string;
+    caseTimeout: number;
 };
 
 async function measureConcurrent(
@@ -240,20 +241,37 @@ export function formatResult(r: BenchResult) {
     return `  ${name}${parts.map((p) => p.padEnd(20)).join("")}`;
 }
 
+// a run that does not settle in time fails its case, the bench goes on
+function withTimeout<T>(promise: Promise<T>, ms: number) {
+    let timer: ReturnType<typeof setTimeout>;
+    return Promise.race([
+        promise,
+        new Promise<never>((_, reject) => {
+            timer = setTimeout(
+                () => reject(new Error(`timed out after ${ms / 1000}s`)),
+                ms
+            );
+        })
+    ]).finally(() => clearTimeout(timer));
+}
+
 async function runCases(
     cases: BenchCase[],
     runs: number,
+    caseTimeoutMs: number,
+    onStart: (c: BenchCase) => void,
     onResult: (result: BenchResult) => void,
     isCancelled: () => boolean
 ) {
     const results: BenchResult[] = [];
     for (const c of cases) {
         if (isCancelled()) break;
+        onStart(c);
         let result: BenchResult = { suite: c.suite, name: c.name };
         try {
             const metrics: Metrics[] = [];
             for (let r = 0; r < runs && !isCancelled(); r++) {
-                metrics.push(await c.measure());
+                metrics.push(await withTimeout(c.measure(), caseTimeoutMs));
             }
             if (metrics.length) {
                 result = { ...result, ...averageMetrics(metrics) };
@@ -312,6 +330,9 @@ function printHelp(shell: Shell) {
     shell.writeln(
         "                         net.Socket case of the stream suite"
     );
+    shell.writeln(
+        "  --case-timeout <s>     Seconds before a run of a case fails (default 120)"
+    );
     shell.writeln("  --sync-only            Run synchronous cases only");
     shell.writeln("  --async-only           Run asynchronous cases only");
 }
@@ -345,7 +366,8 @@ export const bench: Command = {
             suites: BRIDGE_SUITES,
             sync: true,
             async: true,
-            tmpFile: path.resolve(process.cwd(), ".bench.tmp")
+            tmpFile: path.resolve(process.cwd(), ".bench.tmp"),
+            caseTimeout: 120
         };
         let output = "output.json";
         let suitesGiven = false;
@@ -387,6 +409,9 @@ export const bench: Command = {
                     case "-r":
                     case "--runs":
                         opts.runs = parseInt(value());
+                        break;
+                    case "--case-timeout":
+                        opts.caseTimeout = parseInt(value());
                         break;
                     case "-o":
                     case "--output":
@@ -431,10 +456,13 @@ export const bench: Command = {
         const invalidNumber = [
             opts.iterations,
             opts.runs,
+            opts.caseTimeout,
             ...opts.concurrency
         ].some((n) => !Number.isInteger(n) || n < 1);
         if (invalidNumber) {
-            shell.writeln("bench: -n, -r and -c must be positive integers");
+            shell.writeln(
+                "bench: -n, -r, -c and --case-timeout must be positive integers"
+            );
             return 1;
         }
         try {
@@ -469,6 +497,7 @@ export const bench: Command = {
                 streamChunks: opts.streamChunks,
                 concurrency: opts.concurrency,
                 runs: opts.runs,
+                caseTimeout: opts.caseTimeout,
                 suites: opts.suites,
                 echoServer: echoServer ?? null,
                 syncOnly: !opts.async,
@@ -487,8 +516,10 @@ export const bench: Command = {
             )
         );
 
+        // the case being measured, replaced by its result
+        const onStart = (c: BenchCase) => shell.write(gray(`  ${c.name} …`));
         const onResult = (result: BenchResult) =>
-            shell.writeln(formatResult(result));
+            shell.writeln("\r\x1b[K" + formatResult(result));
 
         // the shim cases run only when a shim suite is named
         const shim: ShimOptions = suitesGiven
@@ -501,6 +532,8 @@ export const bench: Command = {
         const results = await runCases(
             createCases(opts, opts.suites, shim),
             opts.runs,
+            opts.caseTimeout * 1000,
+            onStart,
             onResult,
             () => cancelled
         );

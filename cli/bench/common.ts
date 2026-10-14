@@ -14,6 +14,8 @@ export type BenchResult = {
     durationMs?: number;
     chunksPerSec?: number;
     bytes?: number;
+    // longest the page went without running a task during the case
+    maxLagMs?: number;
     error?: string;
 };
 
@@ -153,6 +155,43 @@ export async function measureTransfer(
         durationMs: round(durationMs),
         chunksPerSec: round((chunks / durationMs) * 1000, 1),
         mbPerSec: round(bytes / MiB / (durationMs / 1000))
+    };
+}
+
+// runs an async operation while a MessageChannel ping-pong takes a turn of
+// the event loop as often as it can: the longest gap between two turns is
+// how long the operation held the page (a setTimeout loop would be clamped
+// to 4 ms and throttled in hidden pages)
+export async function measureLag(
+    bytes: number,
+    run: () => Promise<unknown>
+): Promise<Metrics> {
+    const channel = new MessageChannel();
+    let running = true;
+    let last = performance.now();
+    let maxLagMs = 0;
+    channel.port1.onmessage = () => {
+        const now = performance.now();
+        maxLagMs = Math.max(maxLagMs, now - last);
+        last = now;
+        if (running) channel.port2.postMessage(null);
+    };
+    channel.port2.postMessage(null);
+
+    const start = performance.now();
+    try {
+        await run();
+    } finally {
+        running = false;
+        channel.port1.close();
+    }
+    const end = performance.now();
+    maxLagMs = Math.max(maxLagMs, end - last);
+    const durationMs = end - start;
+    return {
+        durationMs: round(durationMs),
+        mbPerSec: round(bytes / MiB / (durationMs / 1000)),
+        maxLagMs: round(maxLagMs)
     };
 }
 

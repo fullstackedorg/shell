@@ -29,7 +29,13 @@ import path from "path";
 import { Worker } from "worker_threads";
 import bundler from "fullstacked/bundle";
 import test from "fullstacked/test";
-import { type BenchCase, MiB, measureOps, measureTransfer } from "./common";
+import {
+    type BenchCase,
+    MiB,
+    measureLag,
+    measureOps,
+    measureTransfer
+} from "./common";
 
 export const SHIM_SUITES = [
     "buffer",
@@ -800,6 +806,26 @@ function zlibCases(): BenchCase[] {
         },
         MiB
     );
+
+    // the callback form must leave the page free while it compresses: the
+    // case records the longest the event loop was held (Stage 5 exit)
+    cases.push({
+        suite,
+        name: "gzip 4m text, callback, page lag",
+        sync: false,
+        measure: () => {
+            const data = text4m();
+            return measureLag(
+                4 * MiB,
+                () =>
+                    new Promise((resolve, reject) =>
+                        zlib.gzip(data, (err, out) =>
+                            err ? reject(err) : resolve(out)
+                        )
+                    )
+            );
+        }
+    });
 
     const total = 16 * MiB;
     const chunkSize = 64 * KiB;

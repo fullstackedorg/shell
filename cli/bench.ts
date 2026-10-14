@@ -238,6 +238,7 @@ export function formatResult(r: BenchResult) {
     if (r.chunksPerSec !== undefined) parts.push(`${r.chunksPerSec} chunks/s`);
     if (r.mbPerSec !== undefined) parts.push(`${r.mbPerSec} MB/s`);
     if (r.bytes !== undefined) parts.push(`${r.bytes} bytes`);
+    if (r.maxLagMs !== undefined) parts.push(`max lag ${r.maxLagMs}ms`);
     return `  ${name}${parts.map((p) => p.padEnd(20)).join("")}`;
 }
 

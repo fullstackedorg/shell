@@ -5,9 +5,33 @@ import os from "os";
 import path from "path";
 import test from "fullstacked/test";
 import { gray, green, red } from "../utils/colors";
+import {
+    type BenchCase,
+    type BenchResult,
+    type Metrics,
+    MiB,
+    averageMetrics,
+    measureLatency,
+    parseSize,
+    payload,
+    round
+} from "./bench/common";
+import {
+    SHIM_SUITES,
+    type ShimOptions,
+    cleanupShim,
+    createShimCases
+} from "./bench/shim";
 
-const SUITES = ["noop", "echo", "concurrent", "stream", "fs"];
-const WARMUP_ITERATIONS = 10;
+export { parseSize };
+
+// the bridge suites of the perfs run; `bench` alone runs these
+const BRIDGE_SUITES = ["noop", "echo", "concurrent", "stream", "fs"];
+// `stream` is in both: named, it runs the bridge cases and the shim ones
+const SUITES = [
+    ...BRIDGE_SUITES,
+    ...SHIM_SUITES.filter((s) => !BRIDGE_SUITES.includes(s))
+];
 
 type BenchOptions = {
     iterations: number;
@@ -21,90 +45,6 @@ type BenchOptions = {
     async: boolean;
     tmpFile: string;
 };
-
-type BenchResult = {
-    suite: string;
-    name: string;
-    meanMs?: number;
-    p95Ms?: number;
-    opsPerSec?: number;
-    mbPerSec?: number;
-    durationMs?: number;
-    chunksPerSec?: number;
-    error?: string;
-};
-
-type Metrics = Omit<BenchResult, "suite" | "name" | "error">;
-
-type BenchCase = {
-    suite: string;
-    name: string;
-    sync: boolean;
-    measure: () => Promise<Metrics>;
-};
-
-const MiB = 1024 * 1024;
-
-export function parseSize(size: string): number {
-    const match = size.trim().match(/^([0-9]+(?:\.[0-9]+)?)([kmg]?)b?$/i);
-    if (!match) {
-        throw new Error(`invalid size '${size}'`);
-    }
-    const units = { "": 1, k: 1024, m: MiB, g: 1024 * MiB };
-    return Math.round(
-        parseFloat(match[1]) *
-            units[match[2].toLowerCase() as keyof typeof units]
-    );
-}
-
-function round(n: number, digits = 2) {
-    const f = Math.pow(10, digits);
-    return Math.round(n * f) / f;
-}
-
-function payload(size: number) {
-    const data = new Uint8Array(size);
-    for (let i = 0; i < size; i++) {
-        data[i] = i & 0xff;
-    }
-    return data;
-}
-
-// mean is total elapsed / iterations, which stays accurate when
-// performance.now() is coarse (WebKit clamps it to 1ms)
-async function measureLatency(
-    iterations: number,
-    op: () => unknown,
-    bytesPerOp = 0
-): Promise<Metrics> {
-    for (let i = 0; i < Math.min(WARMUP_ITERATIONS, iterations); i++) {
-        const r = op();
-        if (r instanceof Promise) await r;
-    }
-
-    const samples = new Float64Array(iterations);
-    const start = performance.now();
-    for (let i = 0; i < iterations; i++) {
-        const t0 = performance.now();
-        const r = op();
-        if (r instanceof Promise) await r;
-        samples[i] = performance.now() - t0;
-    }
-    const total = performance.now() - start;
-
-    samples.sort();
-    const meanMs = total / iterations;
-    const opsPerSec = 1000 / meanMs;
-    const metrics: Metrics = {
-        meanMs: round(meanMs, 3),
-        p95Ms: round(samples[Math.max(0, Math.ceil(iterations * 0.95) - 1)], 3),
-        opsPerSec: round(opsPerSec, 1)
-    };
-    if (bytesPerOp) {
-        metrics.mbPerSec = round((bytesPerOp * opsPerSec) / MiB);
-    }
-    return metrics;
-}
 
 async function measureConcurrent(
     iterations: number,
@@ -166,11 +106,15 @@ function echoOp(data: Uint8Array, sync: boolean) {
         : () => test.benchEcho(data, false).then(check);
 }
 
-function createCases(opts: BenchOptions, suites: string[]): BenchCase[] {
+function createCases(
+    opts: BenchOptions,
+    suites: string[],
+    shim: ShimOptions | null
+): BenchCase[] {
     const n = opts.iterations;
     const cases: BenchCase[] = [];
 
-    for (const suite of suites) {
+    for (const suite of suites.filter((s) => BRIDGE_SUITES.includes(s))) {
         switch (suite) {
             case "noop":
                 cases.push(
@@ -273,16 +217,11 @@ function createCases(opts: BenchOptions, suites: string[]): BenchCase[] {
         }
     }
 
-    return cases.filter((c) => (c.sync ? opts.sync : opts.async));
-}
-
-function averageMetrics(runs: Metrics[]): Metrics {
-    const avg: Metrics = {};
-    for (const key of Object.keys(runs[0]) as (keyof Metrics)[]) {
-        const sum = runs.reduce((s, r) => s + r[key], 0);
-        avg[key] = round(sum / runs.length, 3);
+    if (shim) {
+        cases.push(...createShimCases(suites, shim));
     }
-    return avg;
+
+    return cases.filter((c) => (c.sync ? opts.sync : opts.async));
 }
 
 export function formatResult(r: BenchResult) {
@@ -297,6 +236,7 @@ export function formatResult(r: BenchResult) {
     if (r.opsPerSec !== undefined) parts.push(`${r.opsPerSec} ops/s`);
     if (r.chunksPerSec !== undefined) parts.push(`${r.chunksPerSec} chunks/s`);
     if (r.mbPerSec !== undefined) parts.push(`${r.mbPerSec} MB/s`);
+    if (r.bytes !== undefined) parts.push(`${r.bytes} bytes`);
     return `  ${name}${parts.map((p) => p.padEnd(20)).join("")}`;
 }
 
@@ -361,7 +301,16 @@ function printHelp(shell: Shell) {
         "  -o, --output <file>    Output JSON file (default output.json)"
     );
     shell.writeln(
-        `  --suites <list>        Suites to run (${SUITES.join(",")})`
+        `  --suites <list>        Suites to run (${SUITES.join(",")}),`
+    );
+    shell.writeln(
+        `                         default ${BRIDGE_SUITES.join(",")} (bridge cases only)`
+    );
+    shell.writeln(
+        "  --echo-server <host:port> TCP echo server on the LAN for an extra"
+    );
+    shell.writeln(
+        "                         net.Socket case of the stream suite"
     );
     shell.writeln("  --sync-only            Run synchronous cases only");
     shell.writeln("  --async-only           Run asynchronous cases only");
@@ -393,12 +342,14 @@ export const bench: Command = {
             streamChunks: ["4k", "256k"],
             concurrency: [32],
             runs: 2,
-            suites: SUITES,
+            suites: BRIDGE_SUITES,
             sync: true,
             async: true,
             tmpFile: path.resolve(process.cwd(), ".bench.tmp")
         };
         let output = "output.json";
+        let suitesGiven = false;
+        let echoServer: string = undefined;
 
         for (let i = 0; i < args.length; i++) {
             const arg = args[i];
@@ -443,6 +394,15 @@ export const bench: Command = {
                         break;
                     case "--suites":
                         opts.suites = list(value());
+                        suitesGiven = true;
+                        break;
+                    case "--echo-server":
+                        echoServer = value();
+                        if (!/^.+:[0-9]+$/.test(echoServer)) {
+                            throw new Error(
+                                `--echo-server expects host:port, got '${echoServer}'`
+                            );
+                        }
                         break;
                     case "--sync-only":
                         opts.async = false;
@@ -510,6 +470,7 @@ export const bench: Command = {
                 concurrency: opts.concurrency,
                 runs: opts.runs,
                 suites: opts.suites,
+                echoServer: echoServer ?? null,
                 syncOnly: !opts.async,
                 asyncOnly: !opts.sync
             }
@@ -529,8 +490,16 @@ export const bench: Command = {
         const onResult = (result: BenchResult) =>
             shell.writeln(formatResult(result));
 
+        // the shim cases run only when a shim suite is named
+        const shim: ShimOptions = suitesGiven
+            ? {
+                  tmpDir: path.resolve(process.cwd(), ".bench-shim"),
+                  echoServer
+              }
+            : null;
+
         const results = await runCases(
-            createCases(opts, opts.suites),
+            createCases(opts, opts.suites, shim),
             opts.runs,
             onResult,
             () => cancelled
@@ -541,6 +510,7 @@ export const bench: Command = {
                 fs.rmSync(`${opts.tmpFile}.${size}`);
             } catch {}
         }
+        if (shim) cleanupShim(shim);
 
         if (cancelled) {
             shell.writeln("bench: cancelled, no output written");

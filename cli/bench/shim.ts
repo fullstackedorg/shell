@@ -378,7 +378,8 @@ async function echoThrough(socket: Duplex, total: number, chunkSize: number) {
 function streamCases(opts: ShimOptions): BenchCase[] {
     const suite = "stream";
     const cases: BenchCase[] = [];
-    const total = 512 * MiB;
+    // the chunks are passed by reference: the count is what costs
+    const total = 4096 * MiB;
     for (const [label, chunkSize] of [
         ["64k", 64 * KiB],
         ["4k", 4 * KiB]
@@ -387,7 +388,7 @@ function streamCases(opts: ShimOptions): BenchCase[] {
         cases.push(
             {
                 suite,
-                name: `PassThrough pipe 512m / ${label} chunks`,
+                name: `PassThrough pipe 4g / ${label} chunks`,
                 sync: false,
                 measure: () => {
                     const out = sink();
@@ -405,7 +406,7 @@ function streamCases(opts: ShimOptions): BenchCase[] {
             },
             {
                 suite,
-                name: `PassThrough pipeline 512m / ${label} chunks`,
+                name: `PassThrough pipeline 4g / ${label} chunks`,
                 sync: false,
                 measure: () => {
                     const out = sink();

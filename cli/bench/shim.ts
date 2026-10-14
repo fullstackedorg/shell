@@ -86,6 +86,23 @@ function randomish(bytes: number) {
     return data;
 }
 
+// hex and base64 of bytes, built without the Buffer under test and flat:
+// the shim's own toString("hex") builds a rope, which its Buffer.from(hex)
+// then decodes in quadratic time on JavaScriptCore (64 KB: 2.5 s on an M4)
+export function encode(bytes: Uint8Array, encoding: "hex" | "base64") {
+    if (encoding === "hex") {
+        const table = Array.from({ length: 256 }, (_, i) =>
+            i.toString(16).padStart(2, "0")
+        );
+        return Array.from(bytes, (b) => table[b]).join("");
+    }
+    const parts: string[] = [];
+    for (let i = 0; i < bytes.length; i += 0x8000) {
+        parts.push(String.fromCharCode(...bytes.subarray(i, i + 0x8000)));
+    }
+    return btoa(parts.join(""));
+}
+
 // lazily built inputs, shared by the cases and the runs
 function lazy<T>(make: () => T) {
     let value: T;
@@ -145,7 +162,7 @@ function bufferCases(): BenchCase[] {
             bytes
         );
         for (const encoding of ["hex", "base64"] as const) {
-            const encoded = lazy(() => bin().toString(encoding));
+            const encoded = lazy(() => encode(randomish(bytes), encoding));
             add(
                 `from ${encoding} ${label}`,
                 n,
@@ -167,6 +184,16 @@ function bufferCases(): BenchCase[] {
         }
     }
 
+    // the string toString("hex") returns, decoded again (see encode)
+    add(
+        "hex round trip 16k",
+        10,
+        () => {
+            const b = Buffer.from(randomish(16 * KiB));
+            return () => Buffer.from(b.toString("hex"), "hex");
+        },
+        16 * KiB
+    );
     add(
         "concat 1024x1k",
         1000,

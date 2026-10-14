@@ -241,6 +241,31 @@ export function formatResult(r: BenchResult) {
     return `  ${name}${parts.map((p) => p.padEnd(20)).join("")}`;
 }
 
+// lets the terminal paint the case about to run: the shim suites are
+// synchronous and would otherwise hold the page for their whole run. The
+// message posted from the animation frame runs after that frame is painted;
+// hidden pages run no animation frame, the timer covers them.
+function yieldToPage() {
+    return new Promise<void>((resolve) => {
+        let done = false;
+        const finish = () => {
+            if (done) return;
+            done = true;
+            clearTimeout(timer);
+            resolve();
+        };
+        const timer = setTimeout(finish, 100);
+        requestAnimationFrame(() => {
+            const channel = new MessageChannel();
+            channel.port1.onmessage = () => {
+                channel.port1.close();
+                finish();
+            };
+            channel.port2.postMessage(null);
+        });
+    });
+}
+
 // a run that does not settle in time fails its case, the bench goes on
 function withTimeout<T>(promise: Promise<T>, ms: number) {
     let timer: ReturnType<typeof setTimeout>;
@@ -267,6 +292,7 @@ async function runCases(
     for (const c of cases) {
         if (isCancelled()) break;
         onStart(c);
+        await yieldToPage();
         let result: BenchResult = { suite: c.suite, name: c.name };
         try {
             const metrics: Metrics[] = [];

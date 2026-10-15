@@ -1,4 +1,4 @@
-// The shim suites of `bench` (fullstacked shim/plan.md, section 4.2): the
+// The shim suites of `bench` (fullstacked improvements/shim/plan.md, section 4.2): the
 // Node built-ins the runtime serves from npm shims today (buffer, events,
 // stream, util, crypto, zlib, xmldom), measured case by case so that every
 // rewrite is compared with the shim it replaces on the same device.
@@ -587,7 +587,7 @@ function utilCases(): BenchCase[] {
     ];
 }
 
-// generated once with node:crypto, see shim/plan.md Stage 1
+// generated once with node:crypto, see improvements/shim/plan.md Stage 1
 const RSA_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAt34SAc6ujxtnZadfiuHA
 oufiLPt+Q8xlHTfp019dpIxM3Gs12CWbdBBsyu7BKPdqYEyfY8ifte9yiHCmdtWl
@@ -912,7 +912,7 @@ async function main() {
 main().catch((e) => postMessage({ error: e?.message ?? String(e) }));
 `;
 
-// ~1 MB like an S3 ListObjects response (shim/micro/xml/gen.mjs)
+// ~1 MB like an S3 ListObjects response (improvements/shim/micro/xml/gen.mjs)
 function xmlDocument() {
     let out =
         '<?xml version="1.0" encoding="UTF-8"?>\n<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">\n<Name>bucket</Name>\n';
@@ -1013,7 +1013,7 @@ function xmlCases(opts: ShimOptions): BenchCase[] {
 }
 
 // Bytes of each module as the runtime bundles it: one entry per module
-// (shim/size/<module>/index.ts in the fullstacked repository, the same
+// (improvements/shim/size/<module>/index.ts in the fullstacked repository, the same
 // one-line import written here when that directory is not in the working
 // directory), built with bundleFile. A bundle always carries the runtime
 // (lib/bridge imports buffer, events, stream, string_decoder and, through

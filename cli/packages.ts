@@ -109,7 +109,7 @@ export const packages: Command = {
                         ? progress
                         : [progress];
                     let isResolving = false;
-                    let doneEvent = null;
+                    let doneEvent: { progress?: number } | null = null;
 
                     items.forEach((item) => {
                         if (item.stage === "Done") {

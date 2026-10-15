@@ -15,8 +15,6 @@ export async function handleAutocomplete(
     updateCommand: (newCommand: string, cursorPos: number) => void
 ) {
     const args = splitShellArgs(command);
-    // Also figure out the raw last token from the original string for editing
-    const rawArgs = command.split(" ");
     if (args.length <= 1 && !command.includes(" ")) {
         const availableCommands = Object.keys(commands);
         const matches = availableCommands.filter((c) => c.startsWith(command));

@@ -21,7 +21,6 @@ const GIT_CREDENTIALS_FILE = path.join(
     ".git-credentials"
 );
 
-const td = new TextDecoder();
 const KEYPRESS_DECODER = Symbol.for("KEYPRESS_DECODER");
 
 export class Shell extends EventEmitter {
@@ -52,7 +51,6 @@ export class Shell extends EventEmitter {
 
     // Touch selection fields
     private touchStartPos: { x: number; y: number } | null = null;
-    private touchStartCell: { col: number; row: number } | null = null;
     private touchSelectionAnchorStart: { col: number; row: number } | null =
         null;
     private touchSelectionAnchorEnd: { col: number; row: number } | null = null;
@@ -294,8 +292,6 @@ export class Shell extends EventEmitter {
                 );
                 if (!cell) return;
 
-                this.touchStartCell = cell;
-
                 // Long-press timer (400ms)
                 this.touchSelectTimer = setTimeout(() => {
                     this.isTouchSelecting = true;
@@ -375,7 +371,6 @@ export class Shell extends EventEmitter {
                 }
             }
             this.touchStartPos = null;
-            this.touchStartCell = null;
             this.lastTouchPos = null;
         };
 

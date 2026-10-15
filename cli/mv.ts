@@ -25,7 +25,9 @@ export const mv: Command = {
         let dest = path.resolve(process.cwd(), args[1]);
 
         try {
-            const destStat = await fs.promises.stat(dest).catch(() => null);
+            const destStat = await fs.promises
+                .stat(dest)
+                .catch((): fs.Stats => null);
             if (destStat && destStat.isDirectory()) {
                 dest = path.join(dest, path.basename(source));
             }

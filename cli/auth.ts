@@ -23,7 +23,7 @@ export const auth: Command = {
             const response = await authenticate(dest);
             shell.writeln(JSON.stringify(response));
         } catch (e) {
-            shell.writeln(e.message);
+            shell.writeln((e as Error).message);
         }
     }
 };

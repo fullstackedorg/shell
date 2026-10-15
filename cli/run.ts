@@ -28,7 +28,7 @@ export const run: Command = {
             window.fullstacked.open(ctx);
             (document.activeElement as HTMLElement)?.blur?.();
         } catch (e) {
-            shell.writeln(`run: ${e.message}`);
+            shell.writeln(`run: ${(e as Error).message}`);
             return 1;
         }
 

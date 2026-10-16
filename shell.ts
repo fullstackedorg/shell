@@ -66,6 +66,24 @@ export class Shell extends EventEmitter {
             this.emit("resize");
         });
         this.terminal.loadAddon(new WebLinksAddon());
+        // Ctrl+Shift+C copies the selection like the terminals of Windows and
+        // Linux, Ctrl+C stays the interrupt
+        this.terminal.attachCustomKeyEventHandler((e) => {
+            if (
+                e.ctrlKey &&
+                e.shiftKey &&
+                !e.altKey &&
+                !e.metaKey &&
+                e.code === "KeyC"
+            ) {
+                if (e.type === "keydown" && this.terminal.hasSelection()) {
+                    copyText(this.terminal.getSelection());
+                }
+                e.preventDefault();
+                return false;
+            }
+            return true;
+        });
         this.loadHistory();
         this.runInitScript();
         this.loadPlugins();

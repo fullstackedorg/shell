@@ -22,7 +22,7 @@ export const rm: Command = {
             }
         }
 
-        const recursive = flags.includes("r") || flags.includes("R");
+        // directories are removed with their contents, -r is not needed
         const force = flags.includes("f");
 
         if (
@@ -31,14 +31,14 @@ export const rm: Command = {
             args.includes("-h") ||
             args[0] === "help"
         ) {
-            shell.writeln("usage: rm [-rf] <file/dir...>");
+            shell.writeln("usage: rm [-f] <file/dir...>");
             return 0;
         }
 
         for (const arg of otherArgs) {
             const targetPath = path.resolve(process.cwd(), arg);
             try {
-                await fs.promises.rm(targetPath, { recursive, force });
+                await fs.promises.rm(targetPath, { recursive: true, force });
             } catch (e: any) {
                 shell.writeln(`rm: ${e.message}`);
             }

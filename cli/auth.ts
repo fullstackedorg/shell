@@ -15,15 +15,20 @@ export const auth: Command = {
             args.includes("-h") ||
             args[0] === "help"
         ) {
-            shell.writeln("Usage: auth [url]");
+            shell.writeln("Usage: auth <url>");
             return 0;
         }
-        const dest = args[0] || "https://fullstacked.cloud";
+        const dest = args[0];
+        if (!dest) {
+            shell.writeln("Usage: auth <url>");
+            return 1;
+        }
         try {
             const response = await authenticate(dest);
             shell.writeln(JSON.stringify(response));
         } catch (e) {
             shell.writeln((e as Error).message);
+            return 1;
         }
     }
 };

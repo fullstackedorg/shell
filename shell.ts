@@ -14,12 +14,8 @@ import fs from "fs";
 import path from "path";
 import fullstackedLib from "fullstacked";
 
-const HISTORY_FILE = path.join(path.sep, "user_data", ".history");
-const GIT_CREDENTIALS_FILE = path.join(
-    path.sep,
-    "user_data",
-    ".git-credentials"
-);
+const HISTORY_FILE = path.join(path.sep, ".history");
+const GIT_CREDENTIALS_FILE = path.join(path.sep, ".git-credentials");
 
 const KEYPRESS_DECODER = Symbol.for("KEYPRESS_DECODER");
 
@@ -774,9 +770,6 @@ export class Shell extends EventEmitter {
 
     private async saveHistory() {
         try {
-            await fs.promises.mkdir(`${path.sep}user_data`, {
-                recursive: true
-            });
             const content = this.history.join("\n");
             await fs.promises.writeFile(HISTORY_FILE, content, "utf-8");
         } catch (e) {
@@ -853,10 +846,6 @@ export class Shell extends EventEmitter {
             if (!updated) {
                 credentials.push(newCredential);
             }
-
-            try {
-                await fs.promises.mkdir("/user_data", { recursive: true });
-            } catch (e) {}
 
             await fs.promises.writeFile(
                 GIT_CREDENTIALS_FILE,

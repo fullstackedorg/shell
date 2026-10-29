@@ -243,10 +243,7 @@ transition: padding-bottom 0.22s cubic-bezier(0.16, 1, 0.3, 1);`;
     process.stdout = shell as any;
     process.stderr = shell as any;
 
-    const v = (process.versions as any).fullstacked;
-    terminal.writeln(
-        `Welcome to FullStacked${v ? ` v${v.major}.${v.minor}.${v.patch}` : ""}`
-    );
+    terminal.writeln("Welcome to FullStacked");
 
     shell.prompt();
 

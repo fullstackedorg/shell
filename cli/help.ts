@@ -1,5 +1,6 @@
 import { Command } from "./types";
 import { Shell } from "../shell";
+import { registeredCommands } from "./index";
 
 export const help: Command = {
     name: "help",
@@ -47,6 +48,16 @@ export const help: Command = {
         shell.writeln("  bench         Benchmark the core bridge");
         shell.writeln("  exit          Exit the shell");
         shell.write("\n");
+        const more = registeredCommands();
+        if (more.length) {
+            shell.writeln("More commands:");
+            for (const command of more) {
+                shell.writeln(
+                    `  ${command.name.padEnd(13)} ${command.description ?? ""}`.trimEnd()
+                );
+            }
+            shell.write("\n");
+        }
         return 0;
     }
 };

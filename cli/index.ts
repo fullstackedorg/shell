@@ -60,3 +60,38 @@ export const commands: Record<string, Command> = {
 export const aliases: Record<string, string> = {
     node: "fullstacked -f"
 };
+
+const builtins = new Set(Object.keys(commands));
+
+// Adds a command from outside the shell's bundle (a startup plugin, see
+// `fullstackedShell.registerCommand` in index.ts). Same shape as the
+// built-in commands: listed by `help`, completed with Tab. Registering a name
+// again replaces the previous command; built-in names and aliases are kept.
+// Returns a function that removes the command.
+export function registerCommand(command: Command): () => void {
+    const name = command?.name;
+    if (
+        typeof name !== "string" ||
+        !/^[^\s;&|<>'"`$]+$/.test(name) ||
+        typeof command.execute !== "function"
+    ) {
+        throw new TypeError(
+            "registerCommand: a command needs a name without spaces and an execute function"
+        );
+    }
+    if (builtins.has(name) || name in aliases) {
+        throw new Error(`registerCommand: ${name} is a built-in command`);
+    }
+    commands[name] = command;
+    return () => {
+        if (commands[name] === command) delete commands[name];
+    };
+}
+
+// The commands added with registerCommand, by name
+export function registeredCommands(): Command[] {
+    return Object.keys(commands)
+        .filter((name) => !builtins.has(name))
+        .sort()
+        .map((name) => commands[name]);
+}

@@ -1,6 +1,8 @@
 import { Shell } from "../shell";
-import bundler from "fullstacked/bundle";
-import plugin from "fullstacked/plugin";
+import plugin, {
+    PluginBundleError,
+    type LoadedPlugin
+} from "fullstacked/plugin";
 import fs from "fs";
 import path from "path";
 
@@ -171,30 +173,21 @@ export function resolvePackage(packageName: string, startDir: string): string {
     throw new Error(`Cannot find module '${packageName}' from '${startDir}'`);
 }
 
+// a build plugin runs in a worker unless it asks for the page (see
+// plugin.load): bundling doesn't stall the terminal
 export async function loadAndRegisterPlugin(
     pluginName: string,
     shell: Shell
-): Promise<any> {
+): Promise<LoadedPlugin | null> {
     try {
         const resolvedPath = resolvePackage(pluginName, process.cwd());
-        const res = await bundler.bundleFile(resolvedPath);
-        if (res.Errors && res.Errors.length > 0) {
-            res.Errors.forEach((e) => shell.writeln(formatMessage(e)));
-            return null;
-        }
-        const outputFiles = res.OutputFiles || [];
-        if (outputFiles.length === 0) {
-            shell.writeln(
-                `Error: bundling plugin ${pluginName} produced no output files.`
-            );
-            return null;
-        }
-        const modulePath = path.join(process.cwd(), `${outputFiles[0]}`);
-        const moduleImportPath = `./${modulePath}`;
-        const pluginModule = (await import(moduleImportPath)).default;
-        return await plugin.register("build", pluginModule);
+        return await plugin.load("build", resolvedPath);
     } catch (e: any) {
-        shell.writeln(`Error loading plugin ${pluginName}: ${e.message}`);
+        if (e instanceof PluginBundleError) {
+            e.errors.forEach((err) => shell.writeln(formatMessage(err)));
+        } else {
+            shell.writeln(`Error loading plugin ${pluginName}: ${e.message}`);
+        }
         return null;
     }
 }

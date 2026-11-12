@@ -1,0 +1,9 @@
+/* The page's own colours, in CSS: the app shows the page's first frame
+   before its JavaScript runs (the core holds the scripts until then), so
+   the page is already black before the terminal or the onboarding mounts. */
+html,
+body {
+    margin: 0;
+    height: 100%;
+    background-color: #000;
+}

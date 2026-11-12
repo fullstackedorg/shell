@@ -11,6 +11,7 @@ import { bundle } from "./bundle";
 import { run } from "./run";
 import { exec } from "./exec";
 import { npm } from "./npm";
+import { npx } from "./npx";
 import { vi } from "./vi";
 import { mv } from "./mv";
 import { ssh } from "./ssh";
@@ -41,6 +42,7 @@ export const commands: Record<string, Command> = {
     run,
     exec,
     npm,
+    npx,
     vi,
     ssh,
     config,

@@ -34,6 +34,7 @@ export const help: Command = {
         shell.writeln("  exec          Execute a remote or local script");
         shell.writeln("  packages      Manage project packages");
         shell.writeln("  npm           Run npm commands");
+        shell.writeln("  npx           Run a command, such as npx fullstacked");
         shell.writeln("  env           List environment variables");
         shell.writeln("  unset         Unset environment variables");
         shell.write("\n");

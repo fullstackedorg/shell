@@ -373,6 +373,10 @@ export type ShellStartup = {
     held?: boolean;
     // the rest is set by the shell
 
+    // safe mode (process.env.SAFE, set by the core): the terminal is open
+    // already and stays shown, a startup script opens nothing of its own
+    safe?: boolean;
+
     // opens the terminal the first time, shows it again after hideTerminal;
     // resolves with the same terminal every time
     openTerminal?: () => Promise<OpenedShell>;
@@ -405,8 +409,13 @@ declare global {
 // Whenever the terminal is shown or hidden, the shell fires
 // "fullstackedshellshow" / "fullstackedshellhide" on globalThis. A deeplink
 // command arriving while the terminal is hidden shows it.
+//
+// In safe mode (process.env.SAFE is "1": the app restarted the shell to get
+// back to its terminal) the terminal opens right away whatever plugin is
+// there, `safe` tells the startup script, and hideTerminal does nothing.
 function startShell() {
     const startup = (globalThis.fullstackedShell ??= {});
+    startup.safe = isSafeMode();
 
     let opened: Promise<OpenedShell> | null = null;
     let visible = false;
@@ -429,7 +438,7 @@ function startShell() {
     startup.pauseDeeplinks = deeplinks.pause;
     startup.resumeDeeplinks = deeplinks.resume;
     startup.hideTerminal = async () => {
-        if (opened) setVisible(await opened, false);
+        if (opened && !startup.safe) setVisible(await opened, false);
     };
     startup.openTerminal = () => {
         if (!opened) {
@@ -447,14 +456,20 @@ function startShell() {
         });
     };
 
-    if (startup.bare) {
-        startup.openTerminal();
-        return;
-    }
+    if (startup.bare || startup.safe) startup.openTerminal();
+    if (startup.bare) return;
     globalThis.dispatchEvent(new Event("fullstackedshell"));
     setTimeout(() => {
         if (!startup.held) startup.openTerminal();
     }, 3000);
+}
+
+function isSafeMode() {
+    try {
+        return globalThis.process?.env?.SAFE === "1";
+    } catch {
+        return false;
+    }
 }
 
 startShell();

@@ -16,6 +16,7 @@ import {
     payload,
     round
 } from "./bench/common";
+import { coldStart } from "./bench/cold-start";
 import {
     SHIM_SUITES,
     type ShimOptions,
@@ -324,6 +325,9 @@ function fullstackedVersion() {
 
 function printHelp(shell: Shell) {
     shell.writeln("Usage: bench [options]");
+    shell.writeln(
+        "       bench cold-start [options]  (see bench cold-start --help)"
+    );
     shell.writeln("Benchmark the bridge between the JS runtime and the core.");
     shell.writeln("Options:");
     shell.writeln("  -n, --iterations <n>   Iterations per case (default 200)");
@@ -372,6 +376,9 @@ export const bench: Command = {
         shell: Shell,
         onCancel: (handler: () => void) => void
     ) => {
+        if (args[0] === "cold-start") {
+            return coldStart(args.slice(1), shell, onCancel);
+        }
         if (args.includes("--help") || args.includes("-h")) {
             printHelp(shell);
             return 0;

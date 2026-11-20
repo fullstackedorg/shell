@@ -38,6 +38,9 @@ type Options = {
     output: string;
     upload?: string;
     timeoutMs: number;
+    // every run warm: the caches of an earlier run stay (one measure per
+    // app launch, where a window that exited keeps running in the background)
+    warm: boolean;
 };
 
 function printHelp(shell: Shell) {
@@ -60,6 +63,9 @@ function printHelp(shell: Shell) {
     shell.writeln(
         "  --upload <url>       POST the results as JSON to this URL"
     );
+    shell.writeln(
+        "  --warm               Every run warm: keep the caches of an earlier run"
+    );
 }
 
 function parseOptions(args: string[]): Options {
@@ -69,7 +75,8 @@ function parseOptions(args: string[]): Options {
         modes: ["bundle", "transform"],
         warmRuns: 3,
         output: "cold-start.json",
-        timeoutMs: 120000
+        timeoutMs: 120000,
+        warm: false
     };
     const list = (v: string) =>
         v
@@ -103,6 +110,9 @@ function parseOptions(args: string[]): Options {
                 break;
             case "--upload":
                 opts.upload = value();
+                break;
+            case "--warm":
+                opts.warm = true;
                 break;
             default:
                 throw new Error(`unknown option ${arg}`);
@@ -327,7 +337,7 @@ export async function coldStart(
             (m) => !fixture.modes || fixture.modes.includes(m)
         )) {
             for (let run = 0; run <= opts.warmRuns && !cancelled; run++) {
-                const temp = run === 0 ? "cold" : "warm";
+                const temp = run === 0 && !opts.warm ? "cold" : "warm";
                 const r = await measure(
                     fixture,
                     fixtureDir,

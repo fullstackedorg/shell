@@ -339,5 +339,7 @@ export function setupUtilityButtons(
 
     container.appendChild(toolbar);
     container.appendChild(toggleBtn);
-    document.body.appendChild(container);
+    // next to the terminal, in the element it was opened in: hiding that
+    // element (hideTerminal) hides the buttons with it
+    (terminal.element?.parentElement ?? document.body).appendChild(container);
 }

@@ -187,14 +187,18 @@ async function measure(
     const probe = path.join(fixtureDir, ".cold-start.json");
     fs.rmSync(probe, { force: true });
 
+    // build plugins look for their files from the working directory: from
+    // the fixture's folder, like its npm start
+    const cwd = process.cwd();
+    process.chdir(fixtureDir);
     const plugins = [];
-    for (const name of pluginsOf(fixture)) {
-        plugins.push(
-            await plugin.load("build", resolvePackage(name, fixtureDir))
-        );
-    }
-
     try {
+        for (const name of pluginsOf(fixture)) {
+            plugins.push(
+                await plugin.load("build", resolvePackage(name, fixtureDir))
+            );
+        }
+
         const start = Date.now();
         const built =
             mode === "transform"
@@ -236,6 +240,7 @@ async function measure(
                 await p.unregister();
             } catch {}
         }
+        process.chdir(cwd);
     }
 }
 

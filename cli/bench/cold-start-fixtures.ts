@@ -5,7 +5,8 @@
 // window closes) so the bench can open the next run.
 
 export const DEMO_REPOSITORY = "https://github.com/fullstackedorg/demo.git";
-export const DEMO_COMMIT = "ab74c0e";
+// the demo the onboarding pins (plugins/onboarding/src/demo-pin.ts)
+export const DEMO_COMMIT = "ca0272c1c5f5d57ce50b12ac84fda40024a3062e";
 
 // added at the end of a fixture's entry (imports are hoisted)
 export const RENDER_PROBE = `

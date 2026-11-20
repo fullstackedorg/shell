@@ -12,6 +12,7 @@ import { resolvePackage } from "../utils";
 import {
     FIXTURES,
     RENDER_PROBE,
+    failedChecks,
     pluginsOf,
     type Fixture
 } from "./cold-start-fixtures";
@@ -138,10 +139,20 @@ async function setUp(fixture: Fixture, dir: string, shell: Shell) {
             }
         }
         const entry = path.join(fixtureDir, fixture.entry);
-        fs.writeFileSync(entry, fs.readFileSync(entry, "utf-8") + RENDER_PROBE);
+        // the modules fixture writes its own probe, with its checks
+        if (fixture.name !== "modules") {
+            fs.writeFileSync(
+                entry,
+                fs.readFileSync(entry, "utf-8") + RENDER_PROBE
+            );
+        }
     }
 
-    if (!fs.existsSync(path.join(fixtureDir, "node_modules"))) {
+    const packageJson = JSON.parse(
+        fs.readFileSync(path.join(fixtureDir, "package.json"), "utf-8")
+    );
+    const hasPackages = Object.keys(packageJson.dependencies ?? {}).length > 0;
+    if (hasPackages && !fs.existsSync(path.join(fixtureDir, "node_modules"))) {
         const cwd = process.cwd();
         process.chdir(fixtureDir);
         try {
@@ -212,8 +223,10 @@ async function measure(
             }
             await sleep(25);
         }
-        const { render } = JSON.parse(fs.readFileSync(probe, "utf-8"));
+        const { render, checks } = JSON.parse(fs.readFileSync(probe, "utf-8"));
         result.renderMs = render - start;
+        const failed = failedChecks(checks);
+        if (failed.length) result.error = failed.join(", ");
         // the app exits after its render: its window closes
         await sleep(1500);
         return result;
@@ -305,7 +318,9 @@ export async function coldStart(
             });
             continue;
         }
-        for (const mode of opts.modes) {
+        for (const mode of opts.modes.filter(
+            (m) => !fixture.modes || fixture.modes.includes(m)
+        )) {
             for (let run = 0; run <= opts.warmRuns && !cancelled; run++) {
                 const temp = run === 0 ? "cold" : "warm";
                 const r = await measure(

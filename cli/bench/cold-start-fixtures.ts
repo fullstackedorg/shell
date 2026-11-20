@@ -23,6 +23,8 @@ requestAnimationFrame(() =>
 
 export type Fixture = {
     name: string;
+    // the modes it runs in (default both)
+    modes?: ("bundle" | "transform")[];
     // files written as is (paths relative to the fixture)
     files?: Record<string, string>;
     // or a repository cloned at a commit
@@ -140,7 +142,94 @@ const demo: Fixture = {
     git: { url: DEMO_REPOSITORY, commit: DEMO_COMMIT }
 };
 
-export const FIXTURES: Fixture[] = [small, demo, heavy];
+// The module system of a host, in transform mode: static imports across
+// files, import(), a .tsx module, a module worker importing a module of the
+// page, 300 modules asked for at once (with the first-paint gate) and an
+// import that fails. Its probe carries the checks.
+const MANY_MODULES = 300;
+const modulesFiles: Record<string, string> = {
+    "package.json": JSON.stringify({
+        name: "cold-start-modules",
+        private: true
+    }),
+    "index.ts": `import { a } from "./src/a";
+import { shared } from "./src/shared";
+import { Worker } from "worker_threads";
+import fs from "fs";
+
+const checks: Record<string, boolean | string> = {};
+const report = () => {
+    const pre = document.createElement("pre");
+    pre.id = "app";
+    pre.textContent = JSON.stringify(checks, null, 2);
+    document.body.append(pre);
+    fs.writeFileSync("/.cold-start.json", JSON.stringify({ render: Date.now(), checks }));
+    if (process.env.COLD_START) setTimeout(() => process.exit(), 50);
+};
+
+checks.staticImports = a === "a+b" && shared === "shared";
+try {
+    const { view } = await import("./src/view.tsx");
+    checks.dynamicTsx = view() === "tsx";
+} catch (e) {
+    checks.dynamicTsx = String(e);
+}
+try {
+    const modules = await Promise.all(
+        Array.from({ length: ${MANY_MODULES} }, (_, i) => import(new URL(\`./src/many/m\${i}.ts\`, import.meta.url).href))
+    );
+    checks.manyModules = modules.every((m, i) => m.value === i);
+} catch (e) {
+    checks.manyModules = String(e);
+}
+try {
+    await import(new URL("./src/missing-on-purpose.ts", import.meta.url).href);
+    checks.failingImport = "resolved";
+} catch {
+    checks.failingImport = true;
+}
+checks.worker = await new Promise((resolve) => {
+    const worker = new Worker("./src/worker.ts");
+    const timeout = setTimeout(() => resolve("timeout"), 10000);
+    worker.on("message", (event: any) => {
+        clearTimeout(timeout);
+        resolve(event.data === "shared from worker" ? true : String(event.data));
+    });
+    worker.on("error", (e: any) => {
+        clearTimeout(timeout);
+        resolve(String(e?.message ?? e));
+    });
+});
+report();
+`,
+    "src/a.ts": `import { b } from "./b";\nexport const a = "a+" + b;\n`,
+    "src/b.ts": `export const b = "b";\n`,
+    "src/shared.ts": `export const shared = "shared";\n`,
+    "src/view.tsx": `export function view(): string {\n    return "tsx";\n}\n`,
+    "src/worker.ts": `import { shared } from "./shared";\nimport { parentPort } from "worker_threads";\nparentPort.postMessage(shared + " from worker");\n`
+};
+for (let i = 0; i < MANY_MODULES; i++) {
+    modulesFiles[`src/many/m${i}.ts`] = `export const value: number = ${i};\n`;
+}
+const modules: Fixture = {
+    name: "modules",
+    modes: ["transform"],
+    entry: "index.ts",
+    selector: "#app",
+    files: modulesFiles
+};
+
+export const FIXTURES: Fixture[] = [small, demo, heavy, modules];
+
+// whether a run of the modules fixture passed its checks
+export function failedChecks(
+    checks: Record<string, boolean | string> | undefined
+) {
+    if (!checks) return [];
+    return Object.entries(checks)
+        .filter(([, ok]) => ok !== true)
+        .map(([name, ok]) => `${name}: ${ok}`);
+}
 
 // the demo builds with its Tailwind CSS plugin
 export function pluginsOf(fixture: Fixture) {
